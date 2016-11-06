@@ -44,10 +44,9 @@ struct cameraInfo {
 cameraInfo camera [MAX_CAM_NUM];
 
 void initialiseK(){
-    int i = 0;
     double imageCentreX = 540.0;
     double imageCentreY = 960.0;
-    for (i; i < MAX_CAM_NUM; i++) {
+    for (int i; i < MAX_CAM_NUM; i++) {
         camera[i].K << 0 << 0 << imageCentreX << endr
                     << 0 << 0 << imageCentreY << endr
                     << 0 << 0 << 1;
@@ -61,7 +60,7 @@ double stringToDouble(string s) {
 
 void readFile() {
     std::string line;
-    ifstream camfile ("/cameraData/cameras_v2.txt");
+    ifstream camfile ("cameraData/cameras_v2.txt");
     string RMatrix;
     mat r1;
     mat r2;
@@ -174,7 +173,7 @@ string getFileName(string fileType, int index) {
 void readPFiles() {
     for (int currentCamera = 0; currentCamera < cameraCount; currentCamera++) {
         std::string line;
-        ifstream pfile ("/cameraData/" + getFileName("PMatrix", currentCamera));
+        ifstream pfile ("cameraData/camera_matrix/" + getFileName("PMatrix", currentCamera));
         if (pfile.is_open()) {
             while (pfile >> line) {
                     double x1, x2, x3, x4,
@@ -216,7 +215,7 @@ void calculate2DPoint(int index, vec point_3D){
     point_2D = camera[index - 1].P * point_3D;
     x = point_2D(0, 0) / (point_2D(2, 0));
     y = point_2D(1, 0) / (point_2D(2, 0));
-    //cout << "X: " << x << "  Y: " << y << "\n";
+    cout << "X: " << x << "  Y: " << y << "\n";
     store2DPoint(index - 1, x, y);
 }
 
@@ -231,11 +230,11 @@ void readPatchFile() {
     std::string firstWord;
     int pointNum = 0;
     int currentFile = 0;
-    string fileName = "/cameraData/" + getFileName("Patch", currentFile);
+    string fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
     mat point_3D;
     lineCount = 0;
     while (is_file_exist(fileName) == 1) {
-        fileName = getFileName("Patch", currentFile);
+        fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
         ifstream patchfile (fileName);
         if (patchfile.is_open()) {
             while (getline(patchfile, line)) {
@@ -280,6 +279,7 @@ void runCalc() {
     readFile();//contains camera information
     readPFiles();//contains the camera matrix of each camera
     readPatchFile();//contains the the 3D coordinates
+    //cout << "\nreached\n";
 }
 
 int main(int argc, char *argv[]) {
@@ -287,13 +287,13 @@ int main(int argc, char *argv[]) {
     //readFile();//contains camera information
     //readPFiles();//contains the camera matrix of each camera
     //readPatchFile();//contains the the 3D coordinates
-    cout << "\ncalculation completed\n";
+    //cout << "\ncalculation completed\n";
     runCalc();
 
-    QApplication a(argc, argv);
-    MainWindow w;
-    w.show();
+    //QApplication a(argc, argv);
+    //MainWindow w;
+    //w.show();
 
-    return a.exec();
+    //return a.exec();
     return 0;
 }
