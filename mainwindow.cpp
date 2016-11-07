@@ -204,7 +204,7 @@ void store2DPoint (int camIndex, double x, double y){
         }
     }
     camera[camIndex].image2DPoint[emptyIndex].x = x;
-    camera[camIndex].image2DPoint[emptyIndex].x = y;
+    camera[camIndex].image2DPoint[emptyIndex].y = y;
 }
 
 void calculate2DPoint(int index, vec point_3D){
@@ -317,7 +317,28 @@ void MainWindow::on_calcButton_clicked()
 
 void MainWindow::on_showButton_clicked()
 {
+    QString Index = ui->cameraBox->currentText();
+    int cameraIndex = Index.toInt() - 1;
 
+    int size = MAX_2D_POINTS;
+    QVector<double> x(size), y(size);
+
+    for (int i = 0; i < MAX_2D_POINTS; i++) {
+        if (camera[cameraIndex].image2DPoint[i].x == 0.0 && camera[cameraIndex].image2DPoint[i].y == 0.0) {
+            i = MAX_2D_POINTS;
+            break;
+        }
+        else {
+            x[i] = camera[cameraIndex].image2DPoint[i].x;
+            y[i] = camera[cameraIndex].image2DPoint[i].y;
+        }
+        cout << " x: " << x[i] << " y: " << y[i];
+    }
+    ui->graph->addGraph();
+    ui->graph->graph(0)->setData(x, y);
+    ui->graph->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle));
+    ui->graph->xAxis->setRange(-3000, 3000);
+    ui->graph->yAxis->setRange(-3000, 3000);
 }
 
 void MainWindow::on_resetButton_clicked()
