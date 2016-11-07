@@ -31,6 +31,13 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QPushButton" name="resetButton">
+       <property name="text">
+        <string>Reset</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
    <widget class="QWidget" name="">
@@ -60,12 +67,19 @@
       </widget>
      </item>
      <item>
-      <widget class="QComboBox" name="cameraBox"/>
+      <widget class="QComboBox" name="cameraBox">
+       <property name="currentText">
+        <string/>
+       </property>
+      </widget>
      </item>
      <item>
       <widget class="QPushButton" name="showButton">
        <property name="text">
-        <string>Show</string>
+        <string>Camera View</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
        </property>
       </widget>
      </item>

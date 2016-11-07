@@ -18,10 +18,15 @@ public:
 private slots:
     void on_calcButton_clicked();
 
+    void on_showButton_clicked();
+
+    void on_resetButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     void runCalc();
     void readPatchFile();
+    void setCameraBox();
 };
 
 #endif // MAINWINDOW_H

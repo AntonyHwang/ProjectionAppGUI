@@ -274,7 +274,7 @@ void MainWindow :: readPatchFile() {
     cout << "\ncalculation completed\n";
 }
 
-void MainWindow ::runCalc() {
+void MainWindow::runCalc() {
     initialiseK();
     readFile();//contains camera information
     readPFiles();//contains the camera matrix of each camera
@@ -282,11 +282,23 @@ void MainWindow ::runCalc() {
     //cout << "\nreached\n";
 }
 
+void MainWindow::setCameraBox() {
+    for (int i = 1; i <= cameraCount; i++) {
+        ui->cameraBox->addItem(QString::number(i));
+    }
+    ui->cameraBox->setEnabled(true);
+    ui->showButton->setEnabled(true);
+    ui->resetButton->setEnabled(true);
+}
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    ui->showButton->setEnabled(false);
+    ui->cameraBox->setEnabled(false);
+    ui->resetButton->setEnabled(false);
 }
 
 MainWindow::~MainWindow()
@@ -299,10 +311,19 @@ void MainWindow::on_calcButton_clicked()
     ui->statusLabel->setText("Processing camera data...");
     runCalc();
     ui->statusLabel->setText("Completed");
+    ui->calcButton->setEnabled(false);
+    setCameraBox();
 }
 
+void MainWindow::on_showButton_clicked()
+{
 
+}
 
-
-
-
+void MainWindow::on_resetButton_clicked()
+{
+    ui->calcButton->setEnabled(true);
+    ui->cameraBox->setEnabled(false);
+    ui->showButton->setEnabled(false);
+    ui->statusLabel->setText("");
+}
