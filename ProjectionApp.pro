@@ -6,16 +6,18 @@
 
 QT       += core gui
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
 TARGET = ProjectionApp
 TEMPLATE = app
 
 
 SOURCES += main.cpp\
-        mainwindow.cpp
+        mainwindow.cpp \
+        qcustomplot.cpp
 
-HEADERS  += mainwindow.h
+HEADERS  += mainwindow.h \
+            qcustomplot.h
 
 FORMS    += mainwindow.ui
 
