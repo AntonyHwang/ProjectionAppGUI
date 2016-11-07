@@ -6,11 +6,16 @@
 #include <sstream>
 #include "armadillo"
 
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QPointF>
+#include <QVector>
+
 using namespace arma;
 using namespace std;
 
 const int MAX_CAM_NUM = 200;
-const int MAX_2D_POINTS = 5000;
+const int MAX_2D_POINTS = 10000;
 
 int cameraNum;
 int cameraCount = 0;
@@ -248,7 +253,7 @@ void MainWindow :: readPatchFile() {
                     patchfile >> y >> z >> t;
                     point_3D << x << endr << y << endr << z << endr << t;
                 }
-                else if (lineCount == 7) {
+                else if (lineCount == 7 || lineCount == 8 || lineCount == 9) {
                     calculate2DPoint(stringToDouble(firstWord), point_3D);
                     getline(patchfile, line);
                     std::stringstream stream(line);
@@ -319,8 +324,33 @@ void MainWindow::on_showButton_clicked()
 {
     QString Index = ui->cameraBox->currentText();
     int cameraIndex = Index.toInt() - 1;
+    QVector<QPointF> points;
+    int numPoints = 0;
 
-    int size = MAX_2D_POINTS;
+    for(int i = 0; i< 100; i++) {
+       points.append(QPointF(i*5, i*5));
+    }
+
+    //QGraphicsView * view = new QGraphicsView();
+    QGraphicsScene * scene = new QGraphicsScene();
+    ui->graphicsView->setScene(scene);
+
+    for(int i = 0; i < MAX_2D_POINTS; i++) {
+        if (camera[cameraIndex].image2DPoint[i].x == 0.0 && camera[cameraIndex].image2DPoint[i].y == 0.0) {
+            i = MAX_2D_POINTS;
+            break;
+        }
+        else {
+            double rad = 1;
+            scene->addEllipse(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y, rad, rad,
+                        QPen(), QBrush(Qt::SolidPattern));
+            //points.append(QPointF(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y));
+            numPoints++;
+        }
+    }
+    ui->graphicsView->show();
+
+    /*int size = MAX_2D_POINTS;
     QVector<double> x(size), y(size);
 
     for (int i = 0; i < MAX_2D_POINTS; i++) {
@@ -333,12 +363,12 @@ void MainWindow::on_showButton_clicked()
             y[i] = camera[cameraIndex].image2DPoint[i].y;
         }
         cout << " x: " << x[i] << " y: " << y[i];
-    }
-    ui->graph->addGraph();
-    ui->graph->graph(0)->setData(x, y);
-    ui->graph->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle));
-    ui->graph->xAxis->setRange(-3000, 3000);
-    ui->graph->yAxis->setRange(-3000, 3000);
+    }*/
+    //ui->graph->addGraph();
+    //ui->graph->graph(0)->setData(x, y);
+    //ui->graph->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle));
+    //ui->graph->xAxis->setRange(-3000, 3000);
+    //ui->graph->yAxis->setRange(-3000, 3000);
 }
 
 void MainWindow::on_resetButton_clicked()
