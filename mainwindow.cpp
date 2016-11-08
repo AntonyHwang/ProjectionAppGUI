@@ -15,11 +15,17 @@ using namespace arma;
 using namespace std;
 
 const int MAX_CAM_NUM = 200;
-const int MAX_2D_POINTS = 10000;
+const int MAX_2D_POINTS = 100000;
 
 int cameraNum;
 int cameraCount = 0;
 int lineCount = 1;
+
+struct RGB {
+    double r;
+    double g;
+    double b;
+};
 
 struct point2D {
     double x = 0;
@@ -200,6 +206,30 @@ void readPFiles() {
     }
 }
 
+bool is_file_exist(string fileName)
+{
+    std::ifstream infile(fileName);
+    return infile.good();
+}
+
+void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
+    std::ofstream outputFile;
+    string index;
+    ostringstream convert;
+    convert << camIndex;
+    index = convert.str();
+    if (is_file_exist("output/" + index + ".txt"))
+    {
+        //open and write to file
+        outputFile.open("output/" + index + ".txt", std::ios_base::app);
+    }
+    else {
+        std::ofstream outputFile("output/" + index + ".txt");
+    }
+    outputFile << x << " " << y << " " << RGBVal.r << " " << RGBVal.g << " " << RGBVal.b << "\n";
+    outputFile.close();
+}
+
 void store2DPoint (int camIndex, double x, double y){
     int emptyIndex = 0;
     for (int i = 0; i < MAX_2D_POINTS; i++) {
@@ -212,22 +242,17 @@ void store2DPoint (int camIndex, double x, double y){
     camera[camIndex].image2DPoint[emptyIndex].y = y;
 }
 
-void calculate2DPoint(int index, vec point_3D){
+void calculate2DPoint(int index, mat point_3D, RGB point_RGB){
     //calculate points
     mat point_2D;
     double x;
     double y;
-    point_2D = camera[index - 1].P * point_3D;
+    point_2D = camera[index].P * point_3D;
     x = point_2D(0, 0) / (point_2D(2, 0));
     y = point_2D(1, 0) / (point_2D(2, 0));
     //cout << "X: " << x << "  Y: " << y << "\n";
-    store2DPoint(index - 1, x, y);
-}
-
-bool is_file_exist(string fileName)
-{
-    std::ifstream infile(fileName);
-    return infile.good();
+    //writeToFile(index, x, y, point_RGB);
+    store2DPoint(index, x, y);
 }
 
 void MainWindow :: readPatchFile() {
@@ -237,6 +262,7 @@ void MainWindow :: readPatchFile() {
     int currentFile = 0;
     string fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
     mat point_3D;
+    RGB point_RGB;
     lineCount = 0;
     while (is_file_exist(fileName) == 1) {
         fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
@@ -253,8 +279,17 @@ void MainWindow :: readPatchFile() {
                     patchfile >> y >> z >> t;
                     point_3D << x << endr << y << endr << z << endr << t;
                 }
-                else if (lineCount == 7 || lineCount == 8 || lineCount == 9) {
-                    calculate2DPoint(stringToDouble(firstWord), point_3D);
+                else if (lineCount == 5) {
+                    double r = stringToDouble(firstWord);
+                    double g, b;
+                    patchfile >> g >> b;
+                    point_RGB.r = r;
+                    point_RGB.g = g;
+                    point_RGB.b = b;
+                    cout << r << " " << g << " " << b << "\n";
+                }
+                else if (lineCount == 7 || lineCount == 9) {
+                    calculate2DPoint(stringToDouble(firstWord), point_3D, point_RGB);
                     getline(patchfile, line);
                     std::stringstream stream(line);
                     while(1) {
@@ -262,7 +297,7 @@ void MainWindow :: readPatchFile() {
                         stream >> n;
                         if(!stream)
                             break;
-                        calculate2DPoint(n, point_3D);
+                        calculate2DPoint(n, point_3D, point_RGB);
                     }
                     pointNum++;
                     //cout << pointNum << " 3D points calculation complete\n";
@@ -350,25 +385,6 @@ void MainWindow::on_showButton_clicked()
     }
     ui->graphicsView->show();
 
-    /*int size = MAX_2D_POINTS;
-    QVector<double> x(size), y(size);
-
-    for (int i = 0; i < MAX_2D_POINTS; i++) {
-        if (camera[cameraIndex].image2DPoint[i].x == 0.0 && camera[cameraIndex].image2DPoint[i].y == 0.0) {
-            i = MAX_2D_POINTS;
-            break;
-        }
-        else {
-            x[i] = camera[cameraIndex].image2DPoint[i].x;
-            y[i] = camera[cameraIndex].image2DPoint[i].y;
-        }
-        cout << " x: " << x[i] << " y: " << y[i];
-    }*/
-    //ui->graph->addGraph();
-    //ui->graph->graph(0)->setData(x, y);
-    //ui->graph->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle));
-    //ui->graph->xAxis->setRange(-3000, 3000);
-    //ui->graph->yAxis->setRange(-3000, 3000);
 }
 
 void MainWindow::on_resetButton_clicked()
