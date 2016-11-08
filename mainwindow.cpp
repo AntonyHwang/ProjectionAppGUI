@@ -233,13 +233,13 @@ void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
 void store2DPoint (int camIndex, double x, double y){
     int emptyIndex = 0;
     for (int i = 0; i < MAX_2D_POINTS; i++) {
-        if (camera[camIndex].image2DPoint[i].x == 0 && camera[camIndex].image2DPoint[i].y == 0) {
+        if (camera[camIndex - 1].image2DPoint[i].x == 0 && camera[camIndex - 1].image2DPoint[i].y == 0) {
             emptyIndex = i;
             i = MAX_2D_POINTS;
         }
     }
-    camera[camIndex].image2DPoint[emptyIndex].x = x;
-    camera[camIndex].image2DPoint[emptyIndex].y = y;
+    camera[camIndex - 1].image2DPoint[emptyIndex].x = x;
+    camera[camIndex - 1].image2DPoint[emptyIndex].y = y;
 }
 
 void calculate2DPoint(int index, mat point_3D, RGB point_RGB){
