@@ -30,6 +30,7 @@ struct RGB {
 struct point2D {
     double x = 0;
     double y = 0;
+    RGB pointRGB;
 };
 
 struct point3D {
@@ -238,7 +239,7 @@ void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
     outputFile.close();
 }
 
-void store2DPoint (int camIndex, double x, double y){
+void store2DPoint (int camIndex, double x, double y, RGB point_RGB){
     int emptyIndex = 0;
     for (int i = 0; i < MAX_2D_POINTS; i++) {
         if (camera[camIndex - 1].image2DPoint[i].x == 0 && camera[camIndex - 1].image2DPoint[i].y == 0) {
@@ -248,6 +249,10 @@ void store2DPoint (int camIndex, double x, double y){
     }
     camera[camIndex - 1].image2DPoint[emptyIndex].x = x;
     camera[camIndex - 1].image2DPoint[emptyIndex].y = y;
+    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r = point_RGB.r;
+    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g = point_RGB.g;
+    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b = point_RGB.b;
+    cout << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b << "\n";
 }
 
 void calculate2DPoint(int index, mat point_3D, RGB point_RGB){
@@ -260,11 +265,12 @@ void calculate2DPoint(int index, mat point_3D, RGB point_RGB){
     y = point_2D(1, 0) / (point_2D(2, 0));
     //cout << "X: " << x << "  Y: " << y << "\n";
     //writeToFile(index, x, y, point_RGB);
-    store2DPoint(index, x, y);
+    store2DPoint(index, x, y, point_RGB);
 }
 
 void MainWindow :: readPatchFile() {
     std::string line;
+    std::string lineRGB;
     std::string firstWord;
     int pointNum = 0;
     int currentFile = 0;
@@ -273,6 +279,7 @@ void MainWindow :: readPatchFile() {
     mat point1_3D;
     RGB point_RGB;
     lineCount = 0;
+    ifstream RGBfile ("temp.txt");
     while (is_file_exist(fileName) == 1) {
         fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
         ifstream patchfile (fileName);
@@ -288,10 +295,10 @@ void MainWindow :: readPatchFile() {
                     patchfile >> y >> z >> t;
                     point_3D << x << endr << y << endr << z << endr << t;
                 }
-                else if (lineCount == 5) {
-                    double r = stringToDouble(firstWord);
-                    double g, b;
-                    patchfile >> g >> b;
+                else if (lineCount == 6) {
+                    getline(RGBfile, lineRGB);
+                    double r, g, b;
+                    RGBfile >> r >> g >> b;
                     point_RGB.r = r;
                     point_RGB.g = g;
                     point_RGB.b = b;
@@ -320,6 +327,7 @@ void MainWindow :: readPatchFile() {
             }
         }
     }
+    RGBfile.close();
     cout << "\ncalculation completed\n";
 }
 
@@ -330,9 +338,7 @@ void processPLYFile() {
     lineCount = 0;
     int currentFile = 0;
     string fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
-    cout << fileName << "\n";
     while (is_file_exist(fileName) == 1) {
-        cout <<"not opened\n";
         fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
         ifstream plyfile (fileName);
         if (plyfile.is_open()) {
