@@ -22,6 +22,8 @@ private slots:
 
     void on_resetButton_clicked();
 
+    void on_showButton2_clicked();
+
 private:
     Ui::MainWindow *ui;
     void runCalc();

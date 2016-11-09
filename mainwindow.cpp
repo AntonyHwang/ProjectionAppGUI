@@ -252,7 +252,7 @@ void store2DPoint (int camIndex, double x, double y, RGB point_RGB){
     camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r = point_RGB.r;
     camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g = point_RGB.g;
     camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b = point_RGB.b;
-    cout << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b << "\n";
+    //cout << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b << "\n";
 }
 
 void calculate2DPoint(int index, mat point_3D, RGB point_RGB){
@@ -373,6 +373,7 @@ void MainWindow::setCameraBox() {
     }
     ui->cameraBox->setEnabled(true);
     ui->showButton->setEnabled(true);
+    ui->showButton2->setEnabled(true);
     ui->resetButton->setEnabled(true);
 }
 
@@ -382,6 +383,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     ui->showButton->setEnabled(false);
+    ui->showButton2->setEnabled(false);
     ui->cameraBox->setEnabled(false);
     ui->resetButton->setEnabled(false);
 }
@@ -407,6 +409,35 @@ void MainWindow::on_showButton_clicked()
     QVector<QPointF> points;
     int numPoints = 0;
 
+    QImage image = QImage(2000, 2000, QImage::Format_RGB888);
+    image.fill(QColor(Qt::white).rgb());
+
+    for(int i = 0; i < MAX_2D_POINTS; i++) {
+        if (camera[cameraIndex].image2DPoint[i].x == 0.0 && camera[cameraIndex].image2DPoint[i].y == 0.0) {
+            i = MAX_2D_POINTS;
+            break;
+        }
+        else {
+            image.setPixel(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y,
+                           qRgb(camera[cameraIndex].image2DPoint[i].pointRGB.r, camera[cameraIndex].image2DPoint[i].pointRGB.g, camera[cameraIndex].image2DPoint[i].pointRGB.b));
+            numPoints++;
+        }
+    }
+
+    QGraphicsScene * scene = new QGraphicsScene();
+    ui->graphicsView->setScene(scene);
+
+    scene->addPixmap(QPixmap::fromImage(image));
+
+}
+
+void MainWindow::on_showButton2_clicked()
+{
+    QString Index = ui->cameraBox->currentText();
+    int cameraIndex = Index.toInt() - 1;
+    QVector<QPointF> points;
+    int numPoints = 0;
+
     for(int i = 0; i< 100; i++) {
        points.append(QPointF(i*5, i*5));
     }
@@ -421,7 +452,7 @@ void MainWindow::on_showButton_clicked()
             break;
         }
         else {
-            double rad = 3;
+            double rad = 1;
             scene->addEllipse(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y, rad, rad,
                         QPen(), QBrush(Qt::SolidPattern));
             //points.append(QPointF(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y));
@@ -437,5 +468,6 @@ void MainWindow::on_resetButton_clicked()
     ui->calcButton->setEnabled(true);
     ui->cameraBox->setEnabled(false);
     ui->showButton->setEnabled(false);
+    ui->showButton2->setEnabled(false);
     ui->statusLabel->setText("");
 }
