@@ -164,14 +164,22 @@ string getFileName(string fileType, int index) {
         }
         return fileName;
     }
-    else if (fileType == "Patch") {
+    else if (fileType == "Patch" || fileType == "PLY") {
         //option-0001.patch
         stringstream convert;
         convert << index;
         fileName = convert.str();
-        fileName = fileName + ".patch";
-        while (fileName.length() < 10) {
-            fileName = '0' + fileName;
+        if (fileType == "Patch") {
+            fileName = fileName + ".patch";
+            while (fileName.length() < 10) {
+                fileName = '0' + fileName;
+            }
+        }
+        else {
+            fileName = fileName + ".ply";
+            while (fileName.length() < 8) {
+                fileName = '0' + fileName;
+            }
         }
         return "option-" + fileName;
     }
@@ -262,6 +270,7 @@ void MainWindow :: readPatchFile() {
     int currentFile = 0;
     string fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
     mat point_3D;
+    mat point1_3D;
     RGB point_RGB;
     lineCount = 0;
     while (is_file_exist(fileName) == 1) {
@@ -286,7 +295,7 @@ void MainWindow :: readPatchFile() {
                     point_RGB.r = r;
                     point_RGB.g = g;
                     point_RGB.b = b;
-                    cout << r << " " << g << " " << b << "\n";
+                    //cout << r << " " << g << " " << b << "\n";
                 }
                 else if (lineCount == 7 || lineCount == 9) {
                     calculate2DPoint(stringToDouble(firstWord), point_3D, point_RGB);
@@ -314,10 +323,40 @@ void MainWindow :: readPatchFile() {
     cout << "\ncalculation completed\n";
 }
 
+void processPLYFile() {
+    std::string line;
+    std::string x, y, z, nx, ny, nz, r, g, b;
+    std::ofstream tempFile("temp.txt");
+    lineCount = 0;
+    int currentFile = 0;
+    string fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
+    cout << fileName << "\n";
+    while (is_file_exist(fileName) == 1) {
+        cout <<"not opened\n";
+        fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
+        ifstream plyfile (fileName);
+        if (plyfile.is_open()) {
+            while (getline(plyfile, line)) {
+                if (lineCount >= 12) {
+                    plyfile >> x >> y >> z >> nx >> ny >> nz >> r >> g >> b;
+                    tempFile << r << " " << g << " " << b << "\n";
+                }
+                lineCount++;
+            }
+            if (plyfile.eof()) {
+                plyfile.close();
+                currentFile++;
+            }
+        }
+    }
+    tempFile.close();
+}
+
 void MainWindow::runCalc() {
     initialiseK();
     readFile();//contains camera information
     readPFiles();//contains the camera matrix of each camera
+    processPLYFile();
     readPatchFile();//contains the the 3D coordinates
     //cout << "\nreached\n";
 }
@@ -376,7 +415,7 @@ void MainWindow::on_showButton_clicked()
             break;
         }
         else {
-            double rad = 1;
+            double rad = 3;
             scene->addEllipse(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y, rad, rad,
                         QPen(), QBrush(Qt::SolidPattern));
             //points.append(QPointF(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y));
