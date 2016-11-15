@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "calculation.h"
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -58,7 +60,8 @@ cameraInfo camera [MAX_CAM_NUM];
 void initialiseK(){
     double imageCentreX = 540.0;
     double imageCentreY = 960.0;
-    for (int i; i < MAX_CAM_NUM; i++) {
+    int i =0;
+    for (i = 0; i < MAX_CAM_NUM; i++) {
         camera[i].K << 0 << 0 << imageCentreX << endr
                     << 0 << 0 << imageCentreY << endr
                     << 0 << 0 << 1;

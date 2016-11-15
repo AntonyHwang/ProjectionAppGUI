@@ -3,6 +3,16 @@
 
 #include <QMainWindow>
 
+struct eulerAngles {
+    double theta_1;
+    double psi_1;
+    double phi_1;
+
+    double theta_2;
+    double psi_2;
+    double phi_2;
+};
+
 namespace Ui {
 class MainWindow;
 }
