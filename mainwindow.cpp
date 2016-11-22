@@ -8,6 +8,8 @@
 #include <sstream>
 #include "armadillo"
 
+#include <QFile>
+#include <QTextStream>
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QPointF>
@@ -135,7 +137,7 @@ void readFile() {
                 double z1, z2, z3;
                 camfile >> z1 >> z2 >> z3;
                 r2 << z1 << z2 << z3;
-                //camera[cameraCount - 1].R = join_cols(r3, r2);
+                camera[cameraCount - 1].R = join_cols(r3, r2);
                 //cout << "R: \n" << camera[cameraCount - 1].R << "\n";
             }
             else if (lineCount == 12) {
@@ -398,9 +400,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_calcButton_clicked()
 {
-    ui->statusLabel->setText("Processing camera data...");
     runCalc();
-    ui->statusLabel->setText("Completed");
     ui->calcButton->setEnabled(false);
     setCameraBox();
 }
@@ -472,5 +472,38 @@ void MainWindow::on_resetButton_clicked()
     ui->cameraBox->setEnabled(false);
     ui->showButton->setEnabled(false);
     ui->showButton2->setEnabled(false);
-    ui->statusLabel->setText("");
+}
+
+void MainWindow::on_saveButton_clicked()
+{
+    int cameraIndex = 0;
+    int pointIndex = 0;
+    QString filename = "ImagePointData.txt";
+    QFile file(filename);
+    if (file.open(QIODevice::ReadWrite)) {
+        QTextStream stream(&file);
+        for(cameraIndex = 0; cameraIndex < cameraCount; cameraIndex++) {
+            stream << " " << cameraIndex << endl;
+            stream << camera[cameraIndex].K(0, 0) << " " << camera[cameraIndex].K(0, 1) << " " << camera[cameraIndex].K(0, 2) << endl;
+            stream << camera[cameraIndex].K(1, 0) << " " << camera[cameraIndex].K(1, 1) << " " << camera[cameraIndex].K(1, 2) << endl;
+            stream << camera[cameraIndex].K(2, 0) << " " << camera[cameraIndex].K(2, 1) << " " << camera[cameraIndex].K(2, 2) << endl;
+            stream << camera[cameraIndex].R(0, 0) << " " << camera[cameraIndex].R(0, 1) << " " << camera[cameraIndex].R(0, 2) << endl;
+            stream << camera[cameraIndex].R(1, 0) << " " << camera[cameraIndex].R(1, 1) << " " << camera[cameraIndex].R(1, 2) << endl;
+            stream << camera[cameraIndex].R(2, 0) << " " << camera[cameraIndex].R(2, 1) << " " << camera[cameraIndex].R(2, 2) << endl;
+            stream << camera[cameraIndex].T(0, 0) << " " << camera[cameraIndex].T(1, 0) << " " << camera[cameraIndex].T(2, 0) << endl;
+            for(pointIndex = 0; pointIndex < MAX_2D_POINTS; pointIndex++) {
+                if(camera[cameraIndex].image2DPoint[pointIndex].x == 0 && camera[cameraIndex].image2DPoint[pointIndex].y == 0 && camera[cameraIndex].image2DPoint[pointIndex].pointRGB.r == 0 && camera[cameraIndex].image2DPoint[pointIndex].pointRGB.g == 0 && camera[cameraIndex].image2DPoint[pointIndex].pointRGB.b == 0) {
+                    pointIndex = MAX_2D_POINTS;
+                }
+                else {
+                    stream << camera[cameraIndex].image2DPoint[pointIndex].x << endl;
+                    stream << camera[cameraIndex].image2DPoint[pointIndex].y << endl;
+                    stream << camera[cameraIndex].image2DPoint[pointIndex].pointRGB.r << endl;
+                    stream << camera[cameraIndex].image2DPoint[pointIndex].pointRGB.g << endl;
+                    stream << camera[cameraIndex].image2DPoint[pointIndex].pointRGB.b << endl;
+                }
+            }
+            stream << endl;
+        }
+    }
 }
