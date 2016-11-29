@@ -4,13 +4,9 @@
 #include <QMainWindow>
 
 struct eulerAngles {
-    double theta_1;
-    double psi_1;
-    double phi_1;
-
-    double theta_2;
-    double psi_2;
-    double phi_2;
+    double theta_x;
+    double theta_y;
+    double theta_z;
 };
 
 namespace Ui {
@@ -36,11 +32,18 @@ private slots:
 
     void on_saveButton_clicked();
 
+    void on_loadButton_clicked();
+
+    void on_interpolateButton_clicked();
+
+    void on_matchButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     void runCalc();
     void readPatchFile();
     void setCameraBox();
+    void showIImage();
 };
 
 #endif // MAINWINDOW_H
