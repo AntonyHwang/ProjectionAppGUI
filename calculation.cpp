@@ -5,6 +5,32 @@
 
 using namespace arma;
 
+mat rToQR(mat R) {
+    double R_00 = R(0,0);
+    double R_01 = R(0,1);
+    double R_02 = R(0,2);
+    double R_10 = R(1,0);
+    double R_11 = R(1,1);
+    double R_12 = R(1,2);
+    double R_20 = R(2,0);
+    double R_21 = R(2,1);
+    double R_22 = R(2,2);
+
+    double w = sqrt(1.0 + R_00 + R_11 + R_22) / 2.0;
+    double w4 = (4.0 * w);
+    double x = (R_21 - R_12) / w4 ;
+    double y = (R_02 - R_20) / w4 ;
+    double z = (R_10 - R_01) / w4 ;
+
+    mat qR;
+    qR << w << endr
+       << x << endr
+       << y << endr
+       << z << endr;
+    return qR;
+}
+
+
 mat interpolateQR(mat qR1, mat qR2, double t) {
     double w1 = qR1(0, 0);
     double x1 = qR1(1, 0);

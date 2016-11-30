@@ -38,6 +38,8 @@ private slots:
 
     void on_matchButton_clicked();
 
+    void on_selectButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     void runCalc();

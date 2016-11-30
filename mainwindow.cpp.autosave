@@ -818,6 +818,8 @@ void MainWindow::on_matchButton_clicked()
 void MainWindow::on_selectButton_clicked()
 {
     ui->matchButton->setEnabled(true);
+    ui->interpolateSlider->setEnabled(false);
+    ui->sliderSpinner->setEnabled(false);
     ui->interpolateButton->setEnabled(false);
     QString cIndex = ui->cam1Box->currentText();
     int camIndex = cIndex.toInt() - 1;

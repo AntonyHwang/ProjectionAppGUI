@@ -6,6 +6,7 @@
 
 using namespace arma;
 
+mat rToQR(mat R);
 mat interpolateQR(mat qR1, mat qR2, double t);
 mat qRToRotation(mat iqR);
 eulerAngles computeEuler(mat R);
