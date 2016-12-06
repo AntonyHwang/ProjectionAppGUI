@@ -1,8 +1,16 @@
 #include "calculation.h"
 #include "mainwindow.h"
+#include <cstdlib>						// C standard library
+#include <cstdio>						// C I/O (for sscanf)
+#include <cstring>						// string manipulation
+#include <fstream>						// file I/O
+#include <QDebug>
+
 #include "armadillo"
+#include <ANN/ANN.h>
 #include <math.h>
 
+using namespace std;
 using namespace arma;
 
 mat rToQR(mat R) {
@@ -91,7 +99,7 @@ mat qRToRotation(mat iqR) {
     return rotation;
 }
 
-eulerAngles computeEuler(mat R) {
+/*eulerAngles computeEuler(mat R) {
     double R_00 = R(0,0);
     double R_01 = R(0,1);
     double R_02 = R(0,2);
@@ -104,7 +112,7 @@ eulerAngles computeEuler(mat R) {
 
     //2 sets of possible euler angles
     eulerAngles eA;
-    /*if (R_20 != 1.0 || R_20 != -1.0) {
+    if (R_20 != 1.0 || R_20 != -1.0) {
         eA.theta_x = -asin(R_20);
         eA.theta_y = atan2(R_21/cos(eA.theta_x), R_22/cos(eA.theta_x));
         eA.theta_z = atan2(R_10/cos(eA.theta_x), R_00/cos(eA.theta_x));
@@ -119,7 +127,7 @@ eulerAngles computeEuler(mat R) {
             eA.theta_x = -M_PI / 2;
             eA.theta_y = -eA.theta_z + atan2(-R_01, -R_02);
         }
-    }*/
+    }
     //eA.theta_x = atan2(R_12, R_22);
     //double c2 = sqrt(pow(R_00, 2) + pow(R_01, 2));
     //eA.theta_y = atan2(-R_01, c2);
@@ -167,7 +175,7 @@ eulerAngles interpolateEuler(eulerAngles a, eulerAngles b, double h) {
     hEA.theta_z = a.theta_z + h * (correctAngles(b.theta_z, a.theta_z));
 
     return hEA;
-}
+}*/
 
 mat interpolateTranslation(mat a, mat b, double h) {
     mat iT;
@@ -183,5 +191,87 @@ double focalLen(double a, double b, double h) {
     return hFocalLen;
 }
 
+bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
+{
+    for (int i = 0; i < dim; i++) {
+        if(!(in >> p[i])) return false;
+    }
+    return true;
+}
 
+void printPt(ostream &out, ANNpoint p, int dim)			// print point
+{
+    out << "(" << p[0];
+    for (int i = 1; i < dim; i++) {
+        out << ", " << p[i];
+    }
+    out << ")\n";
+}
+
+void getRGBVal(int numPoint) {
+    int	k = 20;                      // number of nearest neighbors
+    int	dim	= 2;                    // dimension
+    double eps = 0;                 // error bound
+    int maxPts = numPoint;			// maximum number of data points
+
+    istream* dataIn	= NULL;			// input for data points
+    istream* queryIn = NULL;        // input for query points
+
+    int					nPts;					// actual number of data points
+    ANNpointArray		dataPts;				// data points
+    ANNpoint			queryPt;				// query point
+    ANNidxArray			nnIdx;					// near neighbor indices
+    ANNdistArray		dists;					// near neighbor distances
+    ANNkd_tree*			kdTree;					// search structure
+
+    queryPt = annAllocPt(dim);					// allocate query point
+    dataPts = annAllocPts(maxPts, dim);			// allocate data points
+    nnIdx = new ANNidx[k];						// allocate near neigh indices
+    dists = new ANNdist[k];						// allocate near neighbor dists
+
+    static ifstream dataStream;					// data file stream
+    static ifstream queryStream;				// query file stream
+
+    dataStream.open("data.pts");
+    dataIn = &dataStream;
+    queryStream.open("query.pts");
+    queryIn = &queryStream;
+
+    nPts = 0;									// read data points
+    cout << "Data Points:\n";
+
+    //qDebug() << "Reached\n";
+
+    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
+        printPt(cout, dataPts[nPts], dim);
+        nPts++;
+    }
+
+    kdTree = new ANNkd_tree(					// build search structure
+                    dataPts,					// the data points
+                    nPts,						// number of points
+                    dim);						// dimension of space
+
+    while (readPt(*queryIn, queryPt, dim)) {			// read query points
+        cout << "Query point: ";				// echo query point
+        printPt(cout, queryPt, dim);
+
+        kdTree->annkSearch(						// search
+                queryPt,						// query point
+                k,								// number of near neighbors
+                nnIdx,							// nearest neighbors (returned)
+                dists,							// distance (returned)
+                eps);							// error bound
+
+        cout << "\tNN:\tIndex\tDistance\n";
+        for (int i = 0; i < k; i++) {			// print summary
+            dists[i] = sqrt(dists[i]);			// unsquare distance
+            cout << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
+        }
+    }
+    delete [] nnIdx;							// clean things up
+    delete [] dists;
+    delete kdTree;
+    annClose();									// done with ANN
+}
 

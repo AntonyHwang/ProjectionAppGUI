@@ -6,7 +6,9 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+
 #include "armadillo"
+#include <ANN/ANN.h>
 
 #include <QDebug>
 #include <QFile>
@@ -661,7 +663,7 @@ void MainWindow::on_loadButton_clicked()
 }
 
 //display interpolated image when interpolate button is clicked
-void MainWindow::showIImage()
+void MainWindow::showIImage(int numPoint)
 {
     QVector<QPointF> points;
     int numPoints = 0;
@@ -698,24 +700,23 @@ void MainWindow::on_interpolateButton_clicked()
     QString c2Index = ui->cam2Box->currentText();
     mat RT;
     mat iqR;
-    //eulerAngles iEA;
     double h = ui->sliderSpinner->value();
     h = h / 100.0;
     mat rx, ry, rz;
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
 
+    int pointCount = 0;
+
     mat point2D;
     int pointIndex = 0;
-    double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
+    //double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
+    double fL = camera[cam1 - 1].focalLen;
     iCamera.K << fL << 0 << imageCentreX << endr
               << 0 << fL << imageCentreY << endr
               << 0 << 0 << 1;
 
     //quaternion interpolation method
-    //mat cQR1 = rToQR(camera[cam1 - 1].R);
-    //mat cQR2 = rToQR(camera[cam2 - 1].R);
-    //iqR = interpolateQR(cQR1, cQR2, h);
     iqR = interpolateQR(camera[cam1 - 1].qR, camera[cam2 - 1].qR, h);
     iCamera.R = qRToRotation(iqR);
 
@@ -751,26 +752,34 @@ void MainWindow::on_interpolateButton_clicked()
     iCamera.P = iCamera.K * RT;
 
     //cout << "\n Calc qR: \n" << cQR1 << "\n\n";
-    cout << "\n Stored qR: \n" << camera[cam1 - 1].qR << "\n\n";
-    cout << "\n R: \n" << iCamera.R << "\n\n";
-    cout << "\n T: \n" << iCamera.T << "\n\n";
-    cout << "\n P: \n" << iCamera.P << "\n\n";
+    //cout << "\n Stored qR: \n" << camera[cam1 - 1].qR << "\n\n";
+    //cout << "\n R: \n" << iCamera.R << "\n\n";
+    //cout << "\n T: \n" << iCamera.T << "\n\n";
+    //cout << "\n P: \n" << iCamera.P << "\n\n";
 
-    for (pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
-        if (iCamera.p3DPoint[pointIndex].x == 0 && iCamera.p3DPoint[pointIndex].y == 0 && iCamera.p3DPoint[pointIndex].z == 0) {
-            pointIndex = MAX_POINTS;
-            break;
-        }
-        else {
-            mat p3D;
-            p3D << iCamera.p3DPoint[pointIndex].x << endr << iCamera.p3DPoint[pointIndex].y << endr << iCamera.p3DPoint[pointIndex].z << endr << 1;
-            point2D = iCamera.P * p3D;
+    QString pointData = "data.pts";
+    QFile file(pointData);
+    if (file.open(QIODevice::ReadWrite)) {
+        QTextStream stream(&file);
+        for (pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
+            if (iCamera.p3DPoint[pointIndex].x == 0 && iCamera.p3DPoint[pointIndex].y == 0 && iCamera.p3DPoint[pointIndex].z == 0) {
+                pointIndex = MAX_POINTS;
+                break;
+            }
+            else {
+                mat p3D;
+                p3D << iCamera.p3DPoint[pointIndex].x << endr << iCamera.p3DPoint[pointIndex].y << endr << iCamera.p3DPoint[pointIndex].z << endr << 1;
+                point2D = iCamera.P * p3D;
 
-            iCamera.image2DPoint[pointIndex].x = point2D(0, 0) / point2D(2, 0);
-            iCamera.image2DPoint[pointIndex].y = point2D(1, 0) / point2D(2, 0);
+                iCamera.image2DPoint[pointIndex].x = point2D(0, 0) / point2D(2, 0);
+                iCamera.image2DPoint[pointIndex].y = point2D(1, 0) / point2D(2, 0);
+                stream << iCamera.image2DPoint[pointIndex].x << "\t" << iCamera.image2DPoint[pointIndex].y << endl;
+            }
+            pointCount++;
         }
+        showIImage(pointCount);
+        getRGBVal(pointCount);
     }
-    showIImage();
 }
 
 //match button function
@@ -789,7 +798,7 @@ void MainWindow::on_matchButton_clicked()
 
     for(pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
         if(camera[cam1 - 1].p3DPoint[pointIndex].x == 0 && camera[cam1 - 1].p3DPoint[pointIndex].y == 0 && camera[cam1 - 1].p3DPoint[pointIndex].z == 0) {
-                qDebug() << matchNum << " points matched\n";
+                //qDebug() << matchNum << " points matched\n";
                 pointIndex = MAX_POINTS;
                 break;
         }
@@ -818,6 +827,8 @@ void MainWindow::on_matchButton_clicked()
 void MainWindow::on_selectButton_clicked()
 {
     ui->matchButton->setEnabled(true);
+    ui->interpolateSlider->setEnabled(false);
+    ui->sliderSpinner->setEnabled(false);
     ui->interpolateButton->setEnabled(false);
     QString cIndex = ui->cam1Box->currentText();
     int camIndex = cIndex.toInt() - 1;
@@ -867,9 +878,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->selectButton->setEnabled(false);
     ui->matchButton->setEnabled(false);
     ui->interpolateSlider->setEnabled(false);
-    ui->interpolateSlider->setRange(0, 100);
+    ui->interpolateSlider->setRange(0, 10);
     ui->sliderSpinner->setEnabled(false);
-    ui->sliderSpinner->setRange(0, 100);
+    ui->sliderSpinner->setRange(0, 10);
+    ui->interpolateButton->setVisible(false);
     ui->interpolateButton->setEnabled(false);
     QObject::connect(ui->interpolateSlider, SIGNAL(valueChanged(int)), ui->sliderSpinner, SLOT(setValue(int)));
     QObject::connect(ui->sliderSpinner, SIGNAL(valueChanged(int)), ui->interpolateSlider, SLOT(setValue(int)));
@@ -880,4 +892,14 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::on_interpolateSlider_actionTriggered(int action)
+{
+    //on_interpolateButton_clicked();
+}
+
+void MainWindow::on_sliderSpinner_valueChanged(int arg1)
+{
+    on_interpolateButton_clicked();
 }

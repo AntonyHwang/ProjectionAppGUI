@@ -40,12 +40,16 @@ private slots:
 
     void on_selectButton_clicked();
 
+    void on_interpolateSlider_actionTriggered(int action);
+
+    void on_sliderSpinner_valueChanged(int arg1);
+
 private:
     Ui::MainWindow *ui;
     void runCalc();
     void readPatchFile();
     void setCameraBox();
-    void showIImage();
+    void showIImage(int numPoint);
 };
 
 #endif // MAINWINDOW_H
