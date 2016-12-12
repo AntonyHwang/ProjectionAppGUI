@@ -44,12 +44,14 @@ private slots:
 
     void on_sliderSpinner_valueChanged(int arg1);
 
+    void on_getRGBValButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     void runCalc();
     void readPatchFile();
     void setCameraBox();
-    void showIImage(int numPoint);
+    void showIImage(int pointCount);
 };
 
 #endif // MAINWINDOW_H

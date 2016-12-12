@@ -13,6 +13,5 @@ eulerAngles computeEuler(mat R);
 eulerAngles interpolateEuler(eulerAngles a, eulerAngles b, double h);
 mat interpolateTranslation(mat a, mat b, double h);
 double focalLen(double a, double b, double h);
-void getRGBVal(int numPoint);
 
 #endif // CALCULATION_H

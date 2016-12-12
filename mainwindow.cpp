@@ -1,6 +1,8 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "calculation.h"
+#include <Dense>
+#include <Geometry>
 
 #include <iostream>
 #include <fstream>
@@ -11,6 +13,7 @@
 #include <ANN/ANN.h>
 
 #include <QDebug>
+#include <QImage>
 #include <QFile>
 #include <QMessageBox>
 #include <QTextStream>
@@ -21,18 +24,21 @@
 #include <QSlider>
 #include <QSpinBox>
 
+using namespace Eigen;
 using namespace arma;
 using namespace std;
 
 const int MAX_CAM_NUM = 200;
 const int MAX_POINTS = 150000;
 
-double imageCentreX = 540.0;
-double imageCentreY = 960.0;
+double imageCentreX = 414.0;
+double imageCentreY = 646.0;
 
 int cameraNum = 0;
 int cameraCount = 0;
 int lineCount = 1;
+int pointCount = 0;
+int numOfPoint = 0;
 
 struct RGB {
     double r;
@@ -67,7 +73,8 @@ struct cameraInfo {
 };
 
 cameraInfo camera [MAX_CAM_NUM];
-cameraInfo iCamera;
+cameraInfo iCamera;//interpolated camera
+cameraInfo oCamera;//original camera at t = 0
 mat i3DPoint[MAX_POINTS];
 
 void initialiseK(){
@@ -197,6 +204,16 @@ string getFileName(string fileType, int index) {
             }
         }
         return "option-" + fileName;
+    }
+    else if (fileType == "Img") {
+        stringstream convert;
+        convert << index;
+        fileName = convert.str();
+        fileName = fileName + ".jpg";
+        while (fileName.length() < 12) {
+            fileName = '0' + fileName;
+        }
+        return fileName;
     }
     else {
         cout << "cannot find name for this filetype";
@@ -424,8 +441,8 @@ void MainWindow::on_showButton_clicked()
     QVector<QPointF> points;
     int numPoints = 0;
 
-    QImage image = QImage(2000, 2000, QImage::Format_RGB888);
-    image.fill(QColor(Qt::white).rgb());
+    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB888);
+    image.fill(QColor(Qt::black).rgb());
 
     for(int i = 0; i < MAX_POINTS; i++) {
         if (camera[cameraIndex].image2DPoint[i].x == 0.0 && camera[cameraIndex].image2DPoint[i].y == 0.0) {
@@ -663,33 +680,26 @@ void MainWindow::on_loadButton_clicked()
 }
 
 //display interpolated image when interpolate button is clicked
-void MainWindow::showIImage(int numPoint)
+void MainWindow::showIImage(int numOfPoint)
 {
     QVector<QPointF> points;
     int numPoints = 0;
 
-    for(int i = 0; i< 100; i++) {
-       points.append(QPointF(i*5, i*5));
+    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB32);
+    image.fill(QColor(Qt::black).rgb());
+
+    for(int i = 0; i < numOfPoint; i++) {
+        if(iCamera.image2DPoint[i].x != 0 && iCamera.image2DPoint[i].y != 0) {
+            image.setPixel(int(iCamera.image2DPoint[i].x / 2), int(iCamera.image2DPoint[i].y / 2),
+                            qRgb(iCamera.image2DPoint[i].pointRGB.r, iCamera.image2DPoint[i].pointRGB.g, iCamera.image2DPoint[i].pointRGB.b));
+        }
+        numPoints++;
     }
 
-    //QGraphicsView * view = new QGraphicsView();
     QGraphicsScene * scene = new QGraphicsScene();
     ui->graphicsView->setScene(scene);
 
-    for(int i = 0; i < MAX_POINTS; i++) {
-        if (iCamera.image2DPoint[i].x == 0.0 && iCamera.image2DPoint[i].y == 0.0) {
-            i = MAX_POINTS;
-            break;
-        }
-        else {
-            double rad = 1;
-            scene->addEllipse(iCamera.image2DPoint[i].x / 2.0, iCamera.image2DPoint[i].y / 2.0, rad, rad,
-                        QPen(), QBrush(Qt::SolidPattern));
-            numPoints++;
-        }
-    }
-    ui->graphicsView->show();
-
+    scene->addPixmap(QPixmap::fromImage(image));
 }
 
 //interpolate button function
@@ -698,88 +708,57 @@ void MainWindow::on_interpolateButton_clicked()
 {
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
+    mat p3D;
+    mat p2D;
     mat RT;
-    mat iqR;
+    Matrix3d R;
     double h = ui->sliderSpinner->value();
     h = h / 100.0;
-    mat rx, ry, rz;
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
 
-    int pointCount = 0;
-
     mat point2D;
     int pointIndex = 0;
-    //double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
-    double fL = camera[cam1 - 1].focalLen;
+    double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
     iCamera.K << fL << 0 << imageCentreX << endr
               << 0 << fL << imageCentreY << endr
               << 0 << 0 << 1;
 
-    //quaternion interpolation method
-    iqR = interpolateQR(camera[cam1 - 1].qR, camera[cam2 - 1].qR, h);
-    iCamera.R = qRToRotation(iqR);
+    Quaterniond qR1, qR2, iqR;
+    qR1 = {camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0)};
+    qR2 = {camera[cam2 - 1].qR(0, 0), camera[cam2 - 1].qR(1, 0), camera[cam2 - 1].qR(2, 0), camera[cam2 - 1].qR(3, 0)};
 
-    //euler angle interpolation method
-    /*iEA = interpolateEuler(computeEuler(camera[cam1 - 1].R), computeEuler(camera[cam2 - 1].R), h);
-
-    double c1 = cos(iEA.theta_x);
-    double s1 = sin(iEA.theta_x);
-    double c2 = cos(iEA.theta_z);
-    double s2 = sin(iEA.theta_z);
-    double c3 = cos(iEA.theta_y);
-    double s3 = sin(iEA.theta_y);
-
-    double R_00 = c1 * c3;
-    double R_01 = -c1 * s3 * c2 + s1 * s2;
-    double R_02 = c1 * s3 * s2 + s1 * c2;
-    double R_10 = s3;
-    double R_11 = c3 * c2;
-    double R_12 = -c3 * s2;
-    double R_20 = -s1 * c3;
-    double R_21 = s1 * s3 * c2 + c1 * s2;
-    double R_22 = -s1 * s3 * s2 + c1 * c2;
-
-    iCamera.R << R_00 << R_01 << R_02 << endr
-              << R_10 << R_11 << R_12 << endr
-              << R_20 << R_21 << R_22;*/
-
-
+    iqR = qR1.slerp(h, qR2);
+    R = iqR.toRotationMatrix();
+    cout << "QR1: \n" << camera[cam1 - 1].qR << "\n";
+    cout << "QR2: \n" << camera[cam2 - 1].qR << "\n";
+    cout << "R: \n" << R << "\n";
 
     iCamera.T = interpolateTranslation(camera[cam1 - 1].T, camera[cam2 - 1].T, h);
-    RT = join_rows(iCamera.R, iCamera.T);
+
+    RT << R(0, 0) << R(0, 1) << R(0, 2) << iCamera.T(0, 0) << endr
+       << R(1, 0) << R(1, 1) << R(1, 2) << iCamera.T(1, 0) << endr
+       << R(2, 0) << R(2, 1) << R(2, 2) << iCamera.T(2, 0) << endr;
 
     iCamera.P = iCamera.K * RT;
 
-    //cout << "\n Calc qR: \n" << cQR1 << "\n\n";
-    //cout << "\n Stored qR: \n" << camera[cam1 - 1].qR << "\n\n";
-    //cout << "\n R: \n" << iCamera.R << "\n\n";
-    //cout << "\n T: \n" << iCamera.T << "\n\n";
-    //cout << "\n P: \n" << iCamera.P << "\n\n";
+    cout << "RT: \n" << RT << "\n";
+    cout << "P: \n" << iCamera.P << "\n";
 
-    QString pointData = "data.pts";
-    QFile file(pointData);
-    if (file.open(QIODevice::ReadWrite)) {
-        QTextStream stream(&file);
-        for (pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
-            if (iCamera.p3DPoint[pointIndex].x == 0 && iCamera.p3DPoint[pointIndex].y == 0 && iCamera.p3DPoint[pointIndex].z == 0) {
-                pointIndex = MAX_POINTS;
-                break;
-            }
-            else {
-                mat p3D;
-                p3D << iCamera.p3DPoint[pointIndex].x << endr << iCamera.p3DPoint[pointIndex].y << endr << iCamera.p3DPoint[pointIndex].z << endr << 1;
-                point2D = iCamera.P * p3D;
+    for (int i = 0; i < numOfPoint; i++) {
+        if (!(iCamera.p3DPoint[i].x == 0 && iCamera.p3DPoint[i].y == 0 && iCamera.p3DPoint[i].z == 0)) {
+            p3D << iCamera.p3DPoint[i].x << endr << iCamera.p3DPoint[i].y << endr << iCamera.p3DPoint[i].z << endr << 1;
+            p2D = iCamera.P * p3D;
 
-                iCamera.image2DPoint[pointIndex].x = point2D(0, 0) / point2D(2, 0);
-                iCamera.image2DPoint[pointIndex].y = point2D(1, 0) / point2D(2, 0);
-                stream << iCamera.image2DPoint[pointIndex].x << "\t" << iCamera.image2DPoint[pointIndex].y << endl;
-            }
-            pointCount++;
+            iCamera.image2DPoint[i].x = p2D(0, 0) / p2D(2, 0);
+            iCamera.image2DPoint[i].y = p2D(1, 0) / p2D(2, 0);
+            iCamera.image2DPoint[i].pointRGB = camera[cam1 - 1].image2DPoint[i].pointRGB;
+            //qDebug() << iCamera.image2DPoint[i].pointRGB.r << "\n";
+            //qDebug() << iCamera.image2DPoint[i].pointRGB.g << "\n";
+            //qDebug() << iCamera.image2DPoint[i].pointRGB.b << "\n";
         }
-        showIImage(pointCount);
-        getRGBVal(pointCount);
     }
+    showIImage(numOfPoint);
 }
 
 //match button function
@@ -791,37 +770,36 @@ void MainWindow::on_matchButton_clicked()
     QString c2Index = ui->cam2Box->currentText();
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
-    int pointIndex = 0;
-    int pointIndex2 = 0;
     int matchIndex = 0;
     int matchNum = 0;
+    numOfPoint = 0;
 
-    for(pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
+    for(int pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
         if(camera[cam1 - 1].p3DPoint[pointIndex].x == 0 && camera[cam1 - 1].p3DPoint[pointIndex].y == 0 && camera[cam1 - 1].p3DPoint[pointIndex].z == 0) {
-                //qDebug() << matchNum << " points matched\n";
-                pointIndex = MAX_POINTS;
-                break;
+            qDebug() << "number of points: " << pointIndex << "\n";
+            break;
         }
-        else {
-            for(pointIndex2 = 0; pointIndex2 < MAX_POINTS; pointIndex2++) {
-                if(camera[cam2 - 1].p3DPoint[pointIndex2].x == 0 && camera[cam2 - 1].p3DPoint[pointIndex2].y == 0 && camera[cam2 - 1].p3DPoint[pointIndex2].z == 0) {
-                    pointIndex2 = MAX_POINTS;
-                }
-                else {
-                    if(camera[cam1 - 1].p3DPoint[pointIndex].x == camera[cam2 - 1].p3DPoint[pointIndex2].x && camera[cam1 - 1].p3DPoint[pointIndex].y == camera[cam2 - 1].p3DPoint[pointIndex2].y && camera[cam1 - 1].p3DPoint[pointIndex].z == camera[cam2 - 1].p3DPoint[pointIndex2].z) {
-                        iCamera.p3DPoint[matchIndex].x = camera[cam1 - 1].p3DPoint[pointIndex].x;
-                        iCamera.p3DPoint[matchIndex].y = camera[cam1 - 1].p3DPoint[pointIndex].y;
-                        iCamera.p3DPoint[matchIndex].z = camera[cam1 - 1].p3DPoint[pointIndex].z;
-                        matchIndex++;
-                        matchNum++;
-                    }
-                }
+        for(int pointIndex2 = 0; pointIndex2 < MAX_POINTS; pointIndex2++) {
+            if(camera[cam2 - 1].p3DPoint[pointIndex2].x == 0 && camera[cam2 - 1].p3DPoint[pointIndex2].y == 0 && camera[cam2 - 1].p3DPoint[pointIndex2].z == 0) {
+                break;
+            }
+            else if(camera[cam1 - 1].p3DPoint[pointIndex].x == camera[cam2 - 1].p3DPoint[pointIndex2].x &&
+                    camera[cam1 - 1].p3DPoint[pointIndex].y == camera[cam2 - 1].p3DPoint[pointIndex2].y &&
+                    camera[cam1 - 1].p3DPoint[pointIndex].z == camera[cam2 - 1].p3DPoint[pointIndex2].z) {
+                iCamera.p3DPoint[pointIndex].x = camera[cam1 - 1].p3DPoint[pointIndex].x;
+                iCamera.p3DPoint[pointIndex].y = camera[cam1 - 1].p3DPoint[pointIndex].y;
+                iCamera.p3DPoint[pointIndex].z = camera[cam1 - 1].p3DPoint[pointIndex].z;
+                numOfPoint++;
+                break;
             }
         }
+        numOfPoint++;
     }
+    qDebug() << "matchNum" << matchNum << "\n";
     ui->interpolateSlider->setEnabled(true);
     ui->sliderSpinner->setEnabled(true);
     ui->interpolateButton->setEnabled(true);
+    on_interpolateButton_clicked();
 }
 
 void MainWindow::on_selectButton_clicked()
@@ -837,19 +815,28 @@ void MainWindow::on_selectButton_clicked()
     int neighbourCam2 = -1;
     mat temp;
     double dist = 0;
-    double minDist = 100;
+    double minDist = 1000;
+    double minDist2 = 1000;
+
+    QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
+    QPixmap image(filePath);
+    QGraphicsScene * scene = new QGraphicsScene();
+    ui->imgView->setScene(scene);
+    scene->addPixmap(image.scaled(imageCentreX, imageCentreY));
 
     for(i = 0; i < cameraCount; i++) {
-        if ((i != camIndex) && (camera[i].image2DPoint[0].x != 0.0) && (camera[i].image2DPoint[0].y != 0.0)) {
-            //cout << "\n camera: \n" << i << "\n";
-            //cout << "\n camera i: \n" << camera[i].C << "\n";
-            //cout << "\n camera icam: \n" << camera[camIndex].C << "\n";
+        if ((camera[i].image2DPoint[0].x != 0.0) && (camera[i].image2DPoint[0].y != 0.0)) {
             temp = camera[i].C - camera[camIndex].C;
             dist = sqrt(dot(temp, temp));
-            if ((dist < minDist) && dist != 0) {
-                minDist = dist;
-                neighbourCam2 = neighbourCam1;
-                neighbourCam1 = i;
+            if (dist != 0) {
+                if (dist < minDist) {
+                    minDist = dist;
+                    neighbourCam1 = i;
+                }
+                else if (dist < minDist2) {
+                    minDist2 = dist;
+                    neighbourCam2 = i;
+                }
             }
         }
     }
@@ -862,6 +849,91 @@ void MainWindow::on_selectButton_clicked()
     }
     ui->cam2Box->setEnabled(true);
     ui->matchButton->setEnabled(true);
+}
+
+bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
+{
+    for (int i = 0; i < dim; i++) {
+        if(!(in >> p[i])) return false;
+    }
+    return true;
+}
+
+void printPt(ostream &out, ANNpoint p, int dim)			// print point
+{
+    out << "(" << p[0];
+    for (int i = 1; i < dim; i++) {
+        out << ", " << p[i];
+    }
+    out << ")\n";
+}
+
+void MainWindow::on_getRGBValButton_clicked()
+{
+    int	k = 5;
+    int	dim	= 2;
+    double eps = 0;
+    int maxPts = pointCount;
+
+    istream* dataIn	= NULL;
+    istream* queryIn = NULL;
+
+    int					nPts;
+    ANNpointArray		dataPts;
+    ANNpoint			queryPt;
+    ANNidxArray			nnIdx;
+    ANNdistArray		dists;
+    ANNkd_tree*			kdTree;
+
+    queryPt = annAllocPt(dim);
+    dataPts = annAllocPts(maxPts, dim);
+    nnIdx = new ANNidx[k];
+    dists = new ANNdist[k];
+
+    static ifstream dataStream;
+    static ifstream queryStream;
+
+    dataStream.open("data.pts");
+    dataIn = &dataStream;
+    queryStream.open("query.pts");
+    queryIn = &queryStream;
+
+    nPts = 0;
+    cout << "Data Points:\n";
+
+    //qDebug() << "Reached\n";
+
+    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
+        printPt(cout, dataPts[nPts], dim);
+        nPts++;
+    }
+
+    kdTree = new ANNkd_tree(
+                    dataPts,
+                    nPts,
+                    dim);
+
+    while (readPt(*queryIn, queryPt, dim)) {
+        cout << "Query point: ";
+        printPt(cout, queryPt, dim);
+
+        kdTree->annkSearch(
+                queryPt,
+                k,
+                nnIdx,
+                dists,
+                eps);
+
+        cout << "\tNN:\tIndex\tDistance\n";
+        for (int i = 0; i < k; i++) {
+            dists[i] = sqrt(dists[i]);
+            cout << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
+        }
+    }
+    delete [] nnIdx;
+    delete [] dists;
+    delete kdTree;
+    annClose();
 }
 
 MainWindow::MainWindow(QWidget *parent) :
