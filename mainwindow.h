@@ -1,13 +1,4 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
-
 #include <QMainWindow>
-
-struct eulerAngles {
-    double theta_x;
-    double theta_y;
-    double theta_z;
-};
 
 namespace Ui {
 class MainWindow;
@@ -49,9 +40,6 @@ private slots:
 private:
     Ui::MainWindow *ui;
     void runCalc();
-    void readPatchFile();
     void setCameraBox();
     void showIImage(int pointCount);
 };
-
-#endif // MAINWINDOW_H

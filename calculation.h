@@ -1,17 +1,10 @@
-#ifndef CALCULATION_H
-#define CALCULATION_H
+#include <Geometry>
+#include <Dense>
 
-#include "mainwindow.h"
-#include "armadillo"
+using namespace Eigen;
 
-using namespace arma;
-
-mat rToQR(mat R);
-mat interpolateQR(mat qR1, mat qR2, double t);
-mat qRToRotation(mat iqR);
-eulerAngles computeEuler(mat R);
-eulerAngles interpolateEuler(eulerAngles a, eulerAngles b, double h);
-mat interpolateTranslation(mat a, mat b, double h);
+Vector4d rToQR(Matrix3d R);
+Vector4d interpolateQR(Vector4d qR1, Vector4d qR2, double t);
+Matrix3d qRToRotation(Vector4d iqR);
+Vector3d interpolateTranslation(Vector3d a, Vector3d b, double h);
 double focalLen(double a, double b, double h);
-
-#endif // CALCULATION_H

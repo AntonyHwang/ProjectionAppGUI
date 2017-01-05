@@ -1,15 +1,14 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "calculation.h"
-#include <Dense>
-#include <Geometry>
+#include "iodata.h"
+//#include "data.h"
 
+#include <math.h>
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <sstream>
 
-#include "armadillo"
 #include <ANN/ANN.h>
 
 #include <QDebug>
@@ -24,241 +23,36 @@
 #include <QSlider>
 #include <QSpinBox>
 
-using namespace Eigen;
-using namespace arma;
-using namespace std;
-
-const int MAX_CAM_NUM = 200;
-const int MAX_POINTS = 150000;
-
 double imageCentreX = 414.0;
 double imageCentreY = 646.0;
-
-int cameraNum = 0;
-int cameraCount = 0;
-int lineCount = 1;
-int pointCount = 0;
-int numOfPoint = 0;
-
-struct RGB {
-    double r;
-    double g;
-    double b;
-};
-
-struct point2D {
-    double x = 0;
-    double y = 0;
-    RGB pointRGB;
-};
-
-struct point3D {
-    double x;
-    double y;
-    double z;
-};
-
-struct cameraInfo {
-    double focalLen;
-    mat K;//IntrinsicMatrix 3x3
-    mat T;//Translation 3x1
-    mat C;//CameraPosition 3x1
-    mat aR;//AxisAngleR 3x1
-    mat qR;//QuaternionR 4x1
-    mat R;//3x3R
-    double rD;//RadialDistortion
-    mat P;//CameraMatrix
-    point3D p3DPoint [MAX_POINTS];
-    point2D image2DPoint [MAX_POINTS];//2D points
-};
 
 cameraInfo camera [MAX_CAM_NUM];
 cameraInfo iCamera;//interpolated camera
 cameraInfo oCamera;//original camera at t = 0
-mat i3DPoint[MAX_POINTS];
+Vector4d i3DPoint[MAX_POINTS];
+MatrixXd dV[MAX_POINTS];
+
+int cameraNum = 0;
+int cameraCount = 0;
+int pointCount = 0;
+int numOfPoint = 0;
 
 void initialiseK(){
     int i =0;
     for (i = 0; i < MAX_CAM_NUM; i++) {
-        camera[i].K << 0 << 0 << imageCentreX << endr
-                    << 0 << 0 << imageCentreY << endr
-                    << 0 << 0 << 1;
+        camera[i].K << 0, 0, imageCentreX,
+                       0, 0, imageCentreY,
+                       0, 0, 1;
     }
-}
-
-double stringToDouble(string s) {
-    double d = atof(s.c_str());
-    return d;
-}
-
-void readFile() {
-    std::string line;
-    ifstream camfile ("cameraData/cameras_v2.txt");
-    string RMatrix;
-    mat r1;
-    mat r2;
-    mat r3;
-    if (camfile.is_open()) {
-        while (getline(camfile, line)) {
-            if (lineCount == 3) {
-                //storing focal length
-                cameraCount++;
-                //cout << "\n" << "Storing camera " << cameraCount << "\n";
-                camera[cameraCount - 1].focalLen = stringToDouble(line);
-                camera[cameraCount - 1].K(0,0) = camera[cameraCount - 1].focalLen;
-                camera[cameraCount - 1].K(1,1) = camera[cameraCount - 1].focalLen;
-                //cout << "K: \n" << camera[cameraCount - 1].K << "\n";
-            }
-            else if (lineCount == 4) {
-                //storing Translation T
-                double x, y, z;
-                camfile >> x >> y >> z;
-                camera[cameraCount - 1].T << x << endr << y << endr << z;
-                //cout << "T: \n" << camera[cameraCount - 1].T << "\n";
-            }
-            else if (lineCount == 5) {
-                //storing Camera position C
-                double x1, y1, z1;
-                camfile >> x1 >> y1 >> z1;
-                camera[cameraCount - 1].C << x1 << endr << y1 << endr << z1;
-                //cout << "C: \n" << camera[cameraCount - 1].C << "\n";
-            }
-            else if (lineCount == 6) {
-                //storing Axis angle format of R
-                double x, y, z;
-                camfile >> x >> y >> z;
-                camera[cameraCount - 1].aR << x << endr << y << endr << z;
-                //cout << "aR: \n" << camera[cameraCount - 1].aR << "\n";
-            }
-            else if (lineCount == 7) {
-                //storign Quaternion format of R
-                double x, y, z, t;
-                camfile >> x >> y >> z >> t;
-                camera[cameraCount - 1].qR << x << endr << y << endr << z << endr << t;
-                //cout << "qR: \n" << camera[cameraCount - 1].qR << "\n";
-            }
-            else if (lineCount == 8) {
-                //storing Matrix format of R
-                double x1, x2, x3;
-                camfile >> x1 >> x2 >> x3;
-                r1 << x1 << x2 << x3;
-            }
-            else if (lineCount == 9) {
-                double y1, y2, y3;
-                camfile >> y1 >> y2 >> y3;
-                r2 << y1 << y2 << y3;
-                r3 = join_cols(r1, r2);
-            }
-            else if (lineCount == 10) {
-                double z1, z2, z3;
-                camfile >> z1 >> z2 >> z3;
-                r2 << z1 << z2 << z3;
-                camera[cameraCount - 1].R = join_cols(r3, r2);
-                //cout << "R: \n" << camera[cameraCount - 1].R << "\n";
-            }
-            else if (lineCount == 12) {
-                //storing Normalized radial distortion
-                stringstream convert(line);
-                convert >> camera[cameraCount - 1].rD;
-                //cout << "rD: \n" << camera[cameraCount - 1].rD << "\n";
-            }
-            if (lineCount > 14) {
-                lineCount = 1;
-            }
-            lineCount++;
-            if (camfile.eof()) {
-                camfile.close();
-            }
-        }
-    }
-    else cout << "Unable to open file";
-}
-
-string getFileName(string fileType, int index) {
-    string fileName;
-    if (fileType == "PMatrix") {
-        stringstream convert;
-        convert << index;
-        fileName = convert.str();
-        fileName = fileName + ".txt";
-        while (fileName.length() < 12) {
-            fileName = '0' + fileName;
-        }
-        return fileName;
-    }
-    else if (fileType == "Patch" || fileType == "PLY") {
-        //option-0001.patch
-        stringstream convert;
-        convert << index;
-        fileName = convert.str();
-        if (fileType == "Patch") {
-            fileName = fileName + ".patch";
-            while (fileName.length() < 10) {
-                fileName = '0' + fileName;
-            }
-        }
-        else {
-            fileName = fileName + ".ply";
-            while (fileName.length() < 8) {
-                fileName = '0' + fileName;
-            }
-        }
-        return "option-" + fileName;
-    }
-    else if (fileType == "Img") {
-        stringstream convert;
-        convert << index;
-        fileName = convert.str();
-        fileName = fileName + ".jpg";
-        while (fileName.length() < 12) {
-            fileName = '0' + fileName;
-        }
-        return fileName;
-    }
-    else {
-        cout << "cannot find name for this filetype";
-        return "file not exist";
-    }
-}
-
-void readPFiles() {
-    for (int currentCamera = 0; currentCamera < cameraCount; currentCamera++) {
-        std::string line;
-        ifstream pfile ("cameraData/camera_matrix/" + getFileName("PMatrix", currentCamera));
-        if (pfile.is_open()) {
-            while (pfile >> line) {
-                    double x1, x2, x3, x4,
-                           y1, y2, y3, y4,
-                           z1, z2, z3, z4;
-
-                    pfile >> x1 >> x2 >> x3 >> x4
-                          >> y1 >> y2 >> y3 >> y4
-                          >> z1 >> z2 >> z3 >> z4;
-
-                    camera[currentCamera].P << x1 << x2 << x3 << x4 << endr
-                                            << y1 << y2 << y3 << y4 << endr
-                                            << z1 << z2 << z3 << z4;
-            }
-            pfile.close();
-            //cout << "P: \n" << camera[currentCamera].P << "\n";
-        }
-        else cout << "Unable to open file";
-    }
-}
-
-bool is_file_exist(string fileName)
-{
-    std::ifstream infile(fileName);
-    return infile.good();
 }
 
 void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
-    std::ofstream outputFile;
+    ofstream outputFile;
     string index;
     ostringstream convert;
     convert << camIndex;
     index = convert.str();
-    if (is_file_exist("output/" + index + ".txt"))
+    if (checkFileExist("output/" + index + ".txt"))
     {
         //open and write to file
         outputFile.open("output/" + index + ".txt", std::ios_base::app);
@@ -270,133 +64,18 @@ void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
     outputFile.close();
 }
 
-void store2DPoint (int camIndex, double x, double y, RGB point_RGB, mat point_3D){
-    int emptyIndex = 0;
-    for (int i = 0; i < MAX_POINTS; i++) {
-        if (camera[camIndex - 1].image2DPoint[i].x == 0 && camera[camIndex - 1].image2DPoint[i].y == 0) {
-            emptyIndex = i;
-            i = MAX_POINTS;
-        }
-    }
-    camera[camIndex - 1].p3DPoint[emptyIndex].x = point_3D(0, 0);
-    camera[camIndex - 1].p3DPoint[emptyIndex].y = point_3D(1, 0);
-    camera[camIndex - 1].p3DPoint[emptyIndex].z = point_3D(2, 0);
-    camera[camIndex - 1].image2DPoint[emptyIndex].x = x;
-    camera[camIndex - 1].image2DPoint[emptyIndex].y = y;
-    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r = point_RGB.r;
-    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g = point_RGB.g;
-    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b = point_RGB.b;
-    //cout << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b << "\n";
-}
-
-void calculate2DPoint(int index, mat point_3D, RGB point_RGB){
-    //calculate points
-    mat point_2D;
-    double x;
-    double y;
-    point_2D = camera[index].P * point_3D;
-    x = point_2D(0, 0) / (point_2D(2, 0));
-    y = point_2D(1, 0) / (point_2D(2, 0));
-    //cout << "X: " << x << "  Y: " << y << "\n";
-    //writeToFile(index, x, y, point_RGB);
-    store2DPoint(index, x, y, point_RGB, point_3D);
-}
-
-void MainWindow :: readPatchFile() {
-    std::string line;
-    std::string lineRGB;
-    std::string firstWord;
-    int pointNum = 0;
-    int currentFile = 0;
-    string fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
-    mat point_3D;
-    RGB point_RGB;
-    lineCount = 0;
-    ifstream RGBfile ("temp.txt");
-    while (is_file_exist(fileName) == 1) {
-        fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
-        ifstream patchfile (fileName);
-        if (patchfile.is_open()) {
-            while (getline(patchfile, line)) {
-                patchfile >> firstWord;
-                if (firstWord == "PATCHS") {
-                    lineCount = 2;
-                }
-                else if (lineCount == 3) {
-                    double x = stringToDouble(firstWord);
-                    double y, z, t;
-                    patchfile >> y >> z >> t;
-                    point_3D << x << endr << y << endr << z << endr << t;
-                }
-                else if (lineCount == 6) {
-                    getline(RGBfile, lineRGB);
-                    double r, g, b;
-                    RGBfile >> r >> g >> b;
-                    point_RGB.r = r;
-                    point_RGB.g = g;
-                    point_RGB.b = b;
-                    //cout << r << " " << g << " " << b << "\n";
-                }
-                else if (lineCount == 7 || lineCount == 9) {
-                    calculate2DPoint(stringToDouble(firstWord), point_3D, point_RGB);
-                    getline(patchfile, line);
-                    std::stringstream stream(line);
-                    while(1) {
-                        int n;
-                        stream >> n;
-                        if(!stream)
-                            break;
-                        calculate2DPoint(n, point_3D, point_RGB);
-                    }
-                    pointNum++;
-                    //cout << pointNum << " 3D points calculation complete\n";
-                }
-                //cout << "\n";
-                lineCount++;
-                if (patchfile.eof()) {
-                    patchfile.close();
-                    currentFile++;
-                }
-            }
-        }
-    }
-    RGBfile.close();
-    cout << "\ncalculation completed\n";
-}
-
-void processPLYFile() {
-    std::string line;
-    std::string x, y, z, nx, ny, nz, r, g, b;
-    std::ofstream tempFile("temp.txt");
-    lineCount = 0;
-    int currentFile = 0;
-    string fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
-    while (is_file_exist(fileName) == 1) {
-        fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
-        ifstream plyfile (fileName);
-        if (plyfile.is_open()) {
-            while (getline(plyfile, line)) {
-                if (lineCount >= 12) {
-                    plyfile >> x >> y >> z >> nx >> ny >> nz >> r >> g >> b;
-                    tempFile << r << " " << g << " " << b << "\n";
-                }
-                lineCount++;
-            }
-            if (plyfile.eof()) {
-                plyfile.close();
-                currentFile++;
-            }
-        }
-    }
-    tempFile.close();
-}
-
 void MainWindow::runCalc() {
+    //int cameraCount = 0;
     initialiseK();
-    readFile();//contains camera information
-    readPFiles();//contains the camera matrix of each camera
+    qDebug() << "K initialised";
+    cameraCount = readCamFile(camera);//contains camera information
+    qDebug() << "cam file read";
+    readPFiles(camera, cameraCount);//contains the camera matrix of each camera
+    qDebug() << "P file read";
     processPLYFile();
-    readPatchFile();//contains the the 3D coordinates
+    qDebug() << "processed";
+    readPatchFile(camera);//contains the the 3D coordinates
+    qDebug() << "Patch file read";
     //cout << "\nreached\n";
 }
 
@@ -563,9 +242,9 @@ void loadIMPFile()
     int lineCounter = 1;
     int cameraIndex = 0;
     int pointIndex = 0;
-    mat r1;
-    mat r2;
-    mat r3;
+    Vector3d r1;
+    Vector3d r2;
+    Matrix3d r;
     cameraCount = 0;
     QFile IMPFile("ImagePointData.txt");
     if(!IMPFile.open(QIODevice::ReadOnly)) {
@@ -587,36 +266,36 @@ void loadIMPFile()
         }
         else if(lineCounter == 3) {
             //camera position
-            camera[cameraIndex].C << line.split(" ")[0].toDouble() << endr
-                                  << line.split(" ")[1].toDouble() << endr
-                                  << line.split(" ")[2].toDouble() << endr;
+            camera[cameraIndex].C << line.split(" ")[0].toDouble(),
+                                     line.split(" ")[1].toDouble(),
+                                     line.split(" ")[2].toDouble();
         }
         else if(lineCounter == 4) {
             //R matrix r1
-            r1 << line.split(" ")[0].toDouble() << line.split(" ")[1].toDouble() << line.split(" ")[2].toDouble() << endr;
+            r1 << line.split(" ")[0].toDouble(), line.split(" ")[1].toDouble(), line.split(" ")[2].toDouble();
         }
         else if(lineCounter == 5) {
             //R matrix r2
-            r2 << line.split(" ")[0].toDouble() << line.split(" ")[1].toDouble() << line.split(" ")[2].toDouble() << endr;
-            r3 = join_cols(r1, r2);
+            r2 << line.split(" ")[0].toDouble(), line.split(" ")[1].toDouble(), line.split(" ")[2].toDouble();
+            //r3 = join_cols(r1, r2);
         }
         else if(lineCounter == 6) {
             //R matrix r3
-            camera[cameraIndex].R << line.split(" ")[0].toDouble() << line.split(" ")[1].toDouble() << line.split(" ")[2].toDouble() << endr;
-            camera[cameraIndex].R = join_cols(r3, r2);
+            camera[cameraIndex].R << r1, r2, line.split(" ")[0].toDouble(), line.split(" ")[1].toDouble(), line.split(" ")[2].toDouble();
+            //camera[cameraIndex].R = join_cols(r3, r2);
         }
         else if(lineCounter == 7) {
             //qR matrix
-            camera[cameraIndex].qR << line.split(" ")[0].toDouble() << endr
-                                   << line.split(" ")[1].toDouble() << endr
-                                   << line.split(" ")[2].toDouble() << endr
-                                   << line.split(" ")[3].toDouble() << endr;
+            camera[cameraIndex].qR << line.split(" ")[0].toDouble(),
+                                      line.split(" ")[1].toDouble(),
+                                      line.split(" ")[2].toDouble(),
+                                      line.split(" ")[3].toDouble();
         }
         else if(lineCounter == 8) {
             //T matrix
-            camera[cameraIndex].T << line.split(" ")[0].toDouble() << endr
-                                  << line.split(" ")[1].toDouble() << endr
-                                  << line.split(" ")[2].toDouble() << endr;
+            camera[cameraIndex].T << line.split(" ")[0].toDouble(),
+                                     line.split(" ")[1].toDouble(),
+                                     line.split(" ")[2].toDouble();
         }
         else if(line.length() == 0) {
             lineCounter = 0;
@@ -679,6 +358,128 @@ void MainWindow::on_loadButton_clicked()
     ui->selectButton->setEnabled(true);
 }
 
+bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
+{
+    for (int i = 0; i < dim; i++) {
+        if(!(in >> p[i])) return false;
+    }
+    return true;
+}
+
+void printPt(ostream &out, ANNpoint p, int dim)			// print point
+{
+    out << "(" << p[0];
+    for (int i = 1; i < dim; i++) {
+        out << ", " << p[i];
+    }
+    out << ")\n";
+}
+
+void writeQueryToFile(int maxX, int maxY) {
+    QString pointData = "query.pts";
+    QFile file(pointData);
+    if (file.open(QIODevice::ReadWrite)) {
+        QTextStream stream(&file);
+        for (int x = 0; x <= maxX; x++) {
+            for (int y = 0; y <= maxY; y++) {
+                stream << x << "\t" << y << endl;
+            }
+        }
+    }
+}
+
+void pixelMapping() {
+
+    int wi = 0;
+    int wiSum = 0;
+    MatrixXd widiSum(2, 1);
+    MatrixXd dp(2, 1);
+    MatrixXd pPos[MAX_POINTS];
+    MatrixXd pdV[MAX_POINTS];
+
+    int pIdx = 0;
+
+    int	k = 3;
+    int	dim	= 2;
+    double eps = 0;
+    int maxPts = numOfPoint;
+
+    istream* dataIn	= NULL;
+    istream* queryIn = NULL;
+
+    int					nPts;
+    ANNpointArray		dataPts;
+    ANNpoint			queryPt;
+    ANNidxArray			nnIdx;
+    ANNdistArray		dists;
+    ANNkd_tree*			kdTree;
+
+    queryPt = annAllocPt(dim);
+    dataPts = annAllocPts(maxPts, dim);
+    nnIdx = new ANNidx[k];
+    dists = new ANNdist[k];
+
+    static ifstream dataStream;
+    static ifstream queryStream;
+
+    dataStream.open("data.pts");
+    dataIn = &dataStream;
+    queryStream.open("query.pts");
+    queryIn = &queryStream;
+
+    nPts = 0;
+    cout << "Data Points:\n";
+
+    //qDebug() << "Reached\n";
+
+    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
+        printPt(cout, dataPts[nPts], dim);
+        nPts++;
+    }
+
+    kdTree = new ANNkd_tree(
+                    dataPts,
+                    nPts,
+                    dim);
+
+    //int x = 0;
+    //int y = 0;
+
+    while (readPt(*queryIn, queryPt, dim)) {
+        qDebug() << "Query point: ";
+        printPt(cout, queryPt, dim);
+
+        kdTree->annkSearch(
+                queryPt,
+                k,
+                nnIdx,
+                dists,
+                eps);
+
+        qDebug() << "\tNN:\tIndex\tDistance\n";
+        for (int i = 0; i < k; i++) {
+            dists[i] = sqrt(dists[i]);
+            wi = exp(-0.2 * dists[i]);
+            wiSum += wi;
+            widiSum += wi * dV[nnIdx[i]];
+            qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
+        }
+        dp = widiSum / wi;
+        pdV[pIdx] = dp;
+        pIdx++;
+    }
+    delete [] nnIdx;
+    delete [] dists;
+    delete kdTree;
+    annClose();
+
+    /*for (int pixelX = 0; pixelX <= imageCentreX; pixelX++) {
+        for (int pixelY = 0; pixelY <= imageCentreY; pixelY++) {
+
+        }
+    }*/
+}
+
 //display interpolated image when interpolate button is clicked
 void MainWindow::showIImage(int numOfPoint)
 {
@@ -689,7 +490,7 @@ void MainWindow::showIImage(int numOfPoint)
     image.fill(QColor(Qt::black).rgb());
 
     for(int i = 0; i < numOfPoint; i++) {
-        if(iCamera.image2DPoint[i].x != 0 && iCamera.image2DPoint[i].y != 0) {
+        if(iCamera.image2DPoint[i].x != 0 && iCamera.image2DPoint[i].y != 0 && iCamera.image2DPoint[i].x != 10000 && iCamera.image2DPoint[i].y != 10000) {
             image.setPixel(int(iCamera.image2DPoint[i].x / 2), int(iCamera.image2DPoint[i].y / 2),
                             qRgb(iCamera.image2DPoint[i].pointRGB.r, iCamera.image2DPoint[i].pointRGB.g, iCamera.image2DPoint[i].pointRGB.b));
         }
@@ -700,6 +501,7 @@ void MainWindow::showIImage(int numOfPoint)
     ui->graphicsView->setScene(scene);
 
     scene->addPixmap(QPixmap::fromImage(image));
+    //pixelMapping();
 }
 
 //interpolate button function
@@ -708,21 +510,19 @@ void MainWindow::on_interpolateButton_clicked()
 {
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
-    mat p3D;
-    mat p2D;
-    mat RT;
+    MatrixXd RT(3,4);
     Matrix3d R;
+    MatrixXd xy(2, 1);
     double h = ui->sliderSpinner->value();
     h = h / 100.0;
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
 
-    mat point2D;
-    int pointIndex = 0;
+    Vector3d point2D;
     double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
-    iCamera.K << fL << 0 << imageCentreX << endr
-              << 0 << fL << imageCentreY << endr
-              << 0 << 0 << 1;
+    iCamera.K << fL, 0, imageCentreX,
+                 0, fL, imageCentreY,
+                 0, 0, 1;
 
     Quaterniond qR1, qR2, iqR;
     qR1 = {camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0)};
@@ -730,32 +530,50 @@ void MainWindow::on_interpolateButton_clicked()
 
     iqR = qR1.slerp(h, qR2);
     R = iqR.toRotationMatrix();
-    cout << "QR1: \n" << camera[cam1 - 1].qR << "\n";
-    cout << "QR2: \n" << camera[cam2 - 1].qR << "\n";
-    cout << "R: \n" << R << "\n";
+    //cout << "QR1: \n" << camera[cam1 - 1].qR << "\n";
+    //cout << "QR2: \n" << camera[cam2 - 1].qR << "\n";
+    //cout << "R: \n" << R << "\n";
 
     iCamera.T = interpolateTranslation(camera[cam1 - 1].T, camera[cam2 - 1].T, h);
-
-    RT << R(0, 0) << R(0, 1) << R(0, 2) << iCamera.T(0, 0) << endr
-       << R(1, 0) << R(1, 1) << R(1, 2) << iCamera.T(1, 0) << endr
-       << R(2, 0) << R(2, 1) << R(2, 2) << iCamera.T(2, 0) << endr;
+    RT << R(0, 0), R(0, 1), R(0, 2), iCamera.T(0, 0),
+          R(1, 0), R(1, 1), R(1, 2), iCamera.T(1, 0),
+          R(2, 0), R(2, 1), R(2, 2), iCamera.T(2, 0);
 
     iCamera.P = iCamera.K * RT;
 
-    cout << "RT: \n" << RT << "\n";
-    cout << "P: \n" << iCamera.P << "\n";
+    //cout << "RT: \n" << RT << "\n";
+    //cout << "P: \n" << iCamera.P << "\n";
 
-    for (int i = 0; i < numOfPoint; i++) {
-        if (!(iCamera.p3DPoint[i].x == 0 && iCamera.p3DPoint[i].y == 0 && iCamera.p3DPoint[i].z == 0)) {
-            p3D << iCamera.p3DPoint[i].x << endr << iCamera.p3DPoint[i].y << endr << iCamera.p3DPoint[i].z << endr << 1;
-            p2D = iCamera.P * p3D;
+    QString pointData = "data.pts";
+    QFile file(pointData);
+    if (file.open(QIODevice::ReadWrite)) {
+        QTextStream stream(&file);
+        for (int i = 0; i < numOfPoint; i++) {
+            if (!(iCamera.p3DPoint[i].x == 0 && iCamera.p3DPoint[i].y == 0 && iCamera.p3DPoint[i].z == 0)) {
+                Vector4d p3D;
+                Vector3d p2D;
+                p3D << iCamera.p3DPoint[i].x, iCamera.p3DPoint[i].y, iCamera.p3DPoint[i].z, 1;
+                p2D = iCamera.P * p3D;
 
-            iCamera.image2DPoint[i].x = p2D(0, 0) / p2D(2, 0);
-            iCamera.image2DPoint[i].y = p2D(1, 0) / p2D(2, 0);
-            iCamera.image2DPoint[i].pointRGB = camera[cam1 - 1].image2DPoint[i].pointRGB;
-            //qDebug() << iCamera.image2DPoint[i].pointRGB.r << "\n";
-            //qDebug() << iCamera.image2DPoint[i].pointRGB.g << "\n";
-            //qDebug() << iCamera.image2DPoint[i].pointRGB.b << "\n";
+                iCamera.image2DPoint[i].x = p2D(0, 0) / p2D(2, 0);
+                iCamera.image2DPoint[i].y = p2D(1, 0) / p2D(2, 0);
+                iCamera.image2DPoint[i].pointRGB = camera[cam1 - 1].image2DPoint[i].pointRGB;
+                xy(0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
+                xy(1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
+                dV[i] = xy;
+                //dV[i](0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
+                //dV[i](1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
+            }
+            else {
+                iCamera.image2DPoint[i].x = 10000;
+                iCamera.image2DPoint[i].y = 10000;
+                xy(0, 0) = 0;
+                xy(1, 0) = 0;
+                dV[i] = xy;
+                //dV[i](0, 0) = 10000; //ignored points
+                //dV[i](1, 0) = 10000; //ignored points
+            }
+            stream << iCamera.image2DPoint[i].x << "\t" << iCamera.image2DPoint[i].y << endl;
         }
     }
     showIImage(numOfPoint);
@@ -765,13 +583,12 @@ void MainWindow::on_interpolateButton_clicked()
 //find all the matching 3D points between two cameras
 void MainWindow::on_matchButton_clicked()
 {
+    writeQueryToFile(imageCentreX, imageCentreY);
     ui->matchButton->setEnabled(false);
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
-    int matchIndex = 0;
-    int matchNum = 0;
     numOfPoint = 0;
 
     for(int pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
@@ -789,13 +606,11 @@ void MainWindow::on_matchButton_clicked()
                 iCamera.p3DPoint[pointIndex].x = camera[cam1 - 1].p3DPoint[pointIndex].x;
                 iCamera.p3DPoint[pointIndex].y = camera[cam1 - 1].p3DPoint[pointIndex].y;
                 iCamera.p3DPoint[pointIndex].z = camera[cam1 - 1].p3DPoint[pointIndex].z;
-                numOfPoint++;
                 break;
             }
         }
         numOfPoint++;
     }
-    qDebug() << "matchNum" << matchNum << "\n";
     ui->interpolateSlider->setEnabled(true);
     ui->sliderSpinner->setEnabled(true);
     ui->interpolateButton->setEnabled(true);
@@ -813,7 +628,7 @@ void MainWindow::on_selectButton_clicked()
     int i = 0;
     int neighbourCam1 = -1;
     int neighbourCam2 = -1;
-    mat temp;
+    Vector3d temp;
     double dist = 0;
     double minDist = 1000;
     double minDist2 = 1000;
@@ -827,7 +642,7 @@ void MainWindow::on_selectButton_clicked()
     for(i = 0; i < cameraCount; i++) {
         if ((camera[i].image2DPoint[0].x != 0.0) && (camera[i].image2DPoint[0].y != 0.0)) {
             temp = camera[i].C - camera[camIndex].C;
-            dist = sqrt(dot(temp, temp));
+            dist = sqrt(temp.dot(temp));
             if (dist != 0) {
                 if (dist < minDist) {
                     minDist = dist;
@@ -851,26 +666,9 @@ void MainWindow::on_selectButton_clicked()
     ui->matchButton->setEnabled(true);
 }
 
-bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
-{
-    for (int i = 0; i < dim; i++) {
-        if(!(in >> p[i])) return false;
-    }
-    return true;
-}
-
-void printPt(ostream &out, ANNpoint p, int dim)			// print point
-{
-    out << "(" << p[0];
-    for (int i = 1; i < dim; i++) {
-        out << ", " << p[i];
-    }
-    out << ")\n";
-}
-
 void MainWindow::on_getRGBValButton_clicked()
 {
-    int	k = 5;
+    /*int	k = 5;
     int	dim	= 2;
     double eps = 0;
     int maxPts = pointCount;
@@ -933,7 +731,10 @@ void MainWindow::on_getRGBValButton_clicked()
     delete [] nnIdx;
     delete [] dists;
     delete kdTree;
-    annClose();
+    annClose();*/
+    pixelMapping();
+    //getPixel
+    //update graphics view
 }
 
 MainWindow::MainWindow(QWidget *parent) :

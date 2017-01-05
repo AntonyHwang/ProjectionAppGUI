@@ -1,8 +1,3 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include "armadillo"
 #include "mainwindow.h"
 #include <QtGui>
 #include <QApplication>
