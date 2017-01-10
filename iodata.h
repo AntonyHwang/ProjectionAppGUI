@@ -1,6 +1,8 @@
 #include <string>
+#include <QString>
 #include <Geometry>
 #include <Dense>
+#include <QImage>
 //#include "data.h"
 
 using namespace std;
@@ -64,3 +66,6 @@ void processPLYFile();
 void store2DPoint (cameraInfo camera[], int camIndex, double x, double y, RGB point_RGB, Vector4d point_3D);
 void calculate2DPoint(cameraInfo camera[], int index, Vector3d point_3D, RGB point_RGB);
 void readPatchFile(cameraInfo camera[]);
+void writeQueryToFile(int maxX, int maxY);
+void writeToFile(int mode, QString fileName, double x, double y);
+QImage showRGBImg(int camIndex);

@@ -42,4 +42,5 @@ private:
     void runCalc();
     void setCameraBox();
     void showIImage(int pointCount);
+    void showRGBImg(int camIndex);
 };

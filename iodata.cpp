@@ -5,14 +5,16 @@
 #include <fstream>
 #include <sstream>
 #include <QDebug>
+#include <QFile>
+#include <QGraphicsView>
+#include <QGraphicsScene>
 
 double stringToDouble(string s) {
     double d = atof(s.c_str());
     return d;
 }
 
-bool checkFileExist(string fileName)
-{
+bool checkFileExist(string fileName) {
     ifstream infile(fileName);
     return infile.good();
 }
@@ -206,19 +208,19 @@ void processPLYFile() {
 void store2DPoint (cameraInfo camera[], int camIndex, double x, double y, RGB point_RGB, Vector4d point_3D) {
     int emptyIndex = 0;
     for (int i = 0; i < MAX_POINTS; i++) {
-        if (camera[camIndex - 1].image2DPoint[i].x == 0 && camera[camIndex - 1].image2DPoint[i].y == 0) {
+        if (camera[camIndex].image2DPoint[i].x == 0 && camera[camIndex].image2DPoint[i].y == 0) {
             emptyIndex = i;
-            i = MAX_POINTS;
+            break;
         }
     }
-    camera[camIndex - 1].p3DPoint[emptyIndex].x = point_3D(0, 0);
-    camera[camIndex - 1].p3DPoint[emptyIndex].y = point_3D(1, 0);
-    camera[camIndex - 1].p3DPoint[emptyIndex].z = point_3D(2, 0);
-    camera[camIndex - 1].image2DPoint[emptyIndex].x = x;
-    camera[camIndex - 1].image2DPoint[emptyIndex].y = y;
-    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r = point_RGB.r;
-    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g = point_RGB.g;
-    camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b = point_RGB.b;
+    camera[camIndex].p3DPoint[emptyIndex].x = point_3D(0, 0);
+    camera[camIndex].p3DPoint[emptyIndex].y = point_3D(1, 0);
+    camera[camIndex].p3DPoint[emptyIndex].z = point_3D(2, 0);
+    camera[camIndex].image2DPoint[emptyIndex].x = x;
+    camera[camIndex].image2DPoint[emptyIndex].y = y;
+    camera[camIndex].image2DPoint[emptyIndex].pointRGB.r = point_RGB.r;
+    camera[camIndex].image2DPoint[emptyIndex].pointRGB.g = point_RGB.g;
+    camera[camIndex].image2DPoint[emptyIndex].pointRGB.b = point_RGB.b;
     //cout << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b << "\n";
 }
 
@@ -271,7 +273,7 @@ void readPatchFile(cameraInfo camera[]) {
                     //cout << r << " " << g << " " << b << "\n";
                 }
                 else if (lineCount == 7 || lineCount == 9) {
-                    calculate2DPoint(camera, stringToDouble(firstWord), point_3D, point_RGB);
+                    calculate2DPoint(camera, stringToDouble(firstWord) - 1, point_3D, point_RGB);
                     getline(patchfile, line);
                     stringstream stream(line);
                     while(1) {
@@ -295,4 +297,72 @@ void readPatchFile(cameraInfo camera[]) {
     }
     RGBfile.close();
     cout << "\ncalculation completed\n";
+}
+
+void writeQueryToFile(int maxX, int maxY) {
+    QString pointData = "query.pts";
+    QFile file(pointData);
+    if (file.open(QIODevice::ReadWrite)) {
+        QTextStream stream(&file);
+        for (int x = 0; x <= maxX; x++) {
+            for (int y = 0; y <= maxY; y++) {
+                stream << x << "\t" << y << endl;
+            }
+        }
+    }
+}
+
+void writeToFile(int mode, QString fileName, double x, double y) {
+    if (mode == 1) {
+        QString pointData = fileName;
+        QFile file(pointData);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
+            QTextStream stream(&file);
+            stream << x << " " << y << endl;
+        }
+        file.close();
+    }
+    else if (mode == 0) {
+        QString pointData = fileName;
+        QFile file(pointData);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            QTextStream stream(&file);
+            stream << x << " " << y << endl;
+        }
+        file.close();
+    }
+}
+
+QImage showRGBImg(int camIndex) {
+    double imageCentreX = 414.0;
+    double imageCentreY = 646.0;
+    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
+    image.fill(QColor(Qt::black).rgb());
+    QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
+    QImage oImage = QImage(filePath);
+    QFile inputFile("dv.txt");
+    if (inputFile.open(QIODevice::ReadOnly))
+    {
+       QTextStream in(&inputFile);
+       while (!in.atEnd())
+       {
+           for (int ix = 0; ix <= imageCentreX * 2; ix++) {
+               for (int iy = 0; iy <= imageCentreY * 2; iy++) {
+                   QString x, y;
+                   int px, py;
+                   QString line = in.readLine();
+                   //qDebug() << line << "\n";
+                   in >> x >> y;
+                   //qDebug() << x.toDouble() << "\t" << y.toDouble() << "\n";
+                   px = ix - x.toDouble();
+                   py = iy - y.toDouble();
+                   QColor c = QColor::fromRgb (oImage.pixel(px,py) );
+                   //qDebug() << ix << "\t" << iy << ": " << px << "\t" << py << "\n";
+                   image.setPixel(ix, iy, c.rgb());
+               }
+           }
+       }
+       inputFile.close();
+    }
+    return image;
 }

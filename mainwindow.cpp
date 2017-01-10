@@ -22,6 +22,8 @@
 #include <QVector>
 #include <QSlider>
 #include <QSpinBox>
+#include <QQuaternion>
+#include <QGenericMatrix>
 
 double imageCentreX = 414.0;
 double imageCentreY = 646.0;
@@ -32,6 +34,7 @@ cameraInfo oCamera;//original camera at t = 0
 Vector4d i3DPoint[MAX_POINTS];
 MatrixXd dV[MAX_POINTS];
 
+int oCamInd;
 int cameraNum = 0;
 int cameraCount = 0;
 int pointCount = 0;
@@ -67,15 +70,15 @@ void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
 void MainWindow::runCalc() {
     //int cameraCount = 0;
     initialiseK();
-    qDebug() << "K initialised";
+    //qDebug() << "K initialised";
     cameraCount = readCamFile(camera);//contains camera information
-    qDebug() << "cam file read";
+    //qDebug() << "cam file read";
     readPFiles(camera, cameraCount);//contains the camera matrix of each camera
-    qDebug() << "P file read";
+    //qDebug() << "P file read";
     processPLYFile();
-    qDebug() << "processed";
+    //qDebug() << "processed";
     readPatchFile(camera);//contains the the 3D coordinates
-    qDebug() << "Patch file read";
+    //qDebug() << "Patch file read";
     //cout << "\nreached\n";
 }
 
@@ -120,7 +123,7 @@ void MainWindow::on_showButton_clicked()
     QVector<QPointF> points;
     int numPoints = 0;
 
-    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB888);
+    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB888);
     image.fill(QColor(Qt::black).rgb());
 
     for(int i = 0; i < MAX_POINTS; i++) {
@@ -129,7 +132,7 @@ void MainWindow::on_showButton_clicked()
             break;
         }
         else {
-            image.setPixel(camera[cameraIndex].image2DPoint[i].x / 2.0, camera[cameraIndex].image2DPoint[i].y / 2.0,
+            image.setPixel(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y,
                            qRgb(camera[cameraIndex].image2DPoint[i].pointRGB.r, camera[cameraIndex].image2DPoint[i].pointRGB.g, camera[cameraIndex].image2DPoint[i].pointRGB.b));
             numPoints++;
         }
@@ -358,140 +361,18 @@ void MainWindow::on_loadButton_clicked()
     ui->selectButton->setEnabled(true);
 }
 
-bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
-{
-    for (int i = 0; i < dim; i++) {
-        if(!(in >> p[i])) return false;
-    }
-    return true;
-}
-
-void printPt(ostream &out, ANNpoint p, int dim)			// print point
-{
-    out << "(" << p[0];
-    for (int i = 1; i < dim; i++) {
-        out << ", " << p[i];
-    }
-    out << ")\n";
-}
-
-void writeQueryToFile(int maxX, int maxY) {
-    QString pointData = "query.pts";
-    QFile file(pointData);
-    if (file.open(QIODevice::ReadWrite)) {
-        QTextStream stream(&file);
-        for (int x = 0; x <= maxX; x++) {
-            for (int y = 0; y <= maxY; y++) {
-                stream << x << "\t" << y << endl;
-            }
-        }
-    }
-}
-
-void pixelMapping() {
-
-    int wi = 0;
-    int wiSum = 0;
-    MatrixXd widiSum(2, 1);
-    MatrixXd dp(2, 1);
-    MatrixXd pPos[MAX_POINTS];
-    MatrixXd pdV[MAX_POINTS];
-
-    int pIdx = 0;
-
-    int	k = 3;
-    int	dim	= 2;
-    double eps = 0;
-    int maxPts = numOfPoint;
-
-    istream* dataIn	= NULL;
-    istream* queryIn = NULL;
-
-    int					nPts;
-    ANNpointArray		dataPts;
-    ANNpoint			queryPt;
-    ANNidxArray			nnIdx;
-    ANNdistArray		dists;
-    ANNkd_tree*			kdTree;
-
-    queryPt = annAllocPt(dim);
-    dataPts = annAllocPts(maxPts, dim);
-    nnIdx = new ANNidx[k];
-    dists = new ANNdist[k];
-
-    static ifstream dataStream;
-    static ifstream queryStream;
-
-    dataStream.open("data.pts");
-    dataIn = &dataStream;
-    queryStream.open("query.pts");
-    queryIn = &queryStream;
-
-    nPts = 0;
-    cout << "Data Points:\n";
-
-    //qDebug() << "Reached\n";
-
-    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
-        printPt(cout, dataPts[nPts], dim);
-        nPts++;
-    }
-
-    kdTree = new ANNkd_tree(
-                    dataPts,
-                    nPts,
-                    dim);
-
-    //int x = 0;
-    //int y = 0;
-
-    while (readPt(*queryIn, queryPt, dim)) {
-        qDebug() << "Query point: ";
-        printPt(cout, queryPt, dim);
-
-        kdTree->annkSearch(
-                queryPt,
-                k,
-                nnIdx,
-                dists,
-                eps);
-
-        qDebug() << "\tNN:\tIndex\tDistance\n";
-        for (int i = 0; i < k; i++) {
-            dists[i] = sqrt(dists[i]);
-            wi = exp(-0.2 * dists[i]);
-            wiSum += wi;
-            widiSum += wi * dV[nnIdx[i]];
-            qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
-        }
-        dp = widiSum / wi;
-        pdV[pIdx] = dp;
-        pIdx++;
-    }
-    delete [] nnIdx;
-    delete [] dists;
-    delete kdTree;
-    annClose();
-
-    /*for (int pixelX = 0; pixelX <= imageCentreX; pixelX++) {
-        for (int pixelY = 0; pixelY <= imageCentreY; pixelY++) {
-
-        }
-    }*/
-}
-
 //display interpolated image when interpolate button is clicked
 void MainWindow::showIImage(int numOfPoint)
 {
     QVector<QPointF> points;
     int numPoints = 0;
 
-    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB32);
+    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
     image.fill(QColor(Qt::black).rgb());
 
     for(int i = 0; i < numOfPoint; i++) {
         if(iCamera.image2DPoint[i].x != 0 && iCamera.image2DPoint[i].y != 0 && iCamera.image2DPoint[i].x != 10000 && iCamera.image2DPoint[i].y != 10000) {
-            image.setPixel(int(iCamera.image2DPoint[i].x / 2), int(iCamera.image2DPoint[i].y / 2),
+            image.setPixel(int(iCamera.image2DPoint[i].x), int(iCamera.image2DPoint[i].y),
                             qRgb(iCamera.image2DPoint[i].pointRGB.r, iCamera.image2DPoint[i].pointRGB.g, iCamera.image2DPoint[i].pointRGB.b));
         }
         numPoints++;
@@ -508,17 +389,17 @@ void MainWindow::showIImage(int numOfPoint)
 //interpolate two different 2D views fro two separate cameras
 void MainWindow::on_interpolateButton_clicked()
 {
+    int start = 1;
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
     MatrixXd RT(3,4);
     Matrix3d R;
     MatrixXd xy(2, 1);
     double h = ui->sliderSpinner->value();
-    h = h / 100.0;
+    h = h / 10.0;
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
 
-    Vector3d point2D;
     double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
     iCamera.K << fL, 0, imageCentreX,
                  0, fL, imageCentreY,
@@ -527,12 +408,23 @@ void MainWindow::on_interpolateButton_clicked()
     Quaterniond qR1, qR2, iqR;
     qR1 = {camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0)};
     qR2 = {camera[cam2 - 1].qR(0, 0), camera[cam2 - 1].qR(1, 0), camera[cam2 - 1].qR(2, 0), camera[cam2 - 1].qR(3, 0)};
+    //QQuaternion qR1, qR2, iqR;
+    //QMatrix3x3 rotation;
+    //qR1 = QQuaternion(camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0));
+    //qR2 = QQuaternion(camera[cam2 - 1].qR(0, 0), camera[cam2 - 1].qR(1, 0), camera[cam2 - 1].qR(2, 0), camera[cam2 - 1].qR(3, 0));
+    //iqR = QQuaternion::slerp(qR1, qR2, h);
+    //rotation = iqR.toRotationMatrix();
 
     iqR = qR1.slerp(h, qR2);
     R = iqR.toRotationMatrix();
     //cout << "QR1: \n" << camera[cam1 - 1].qR << "\n";
     //cout << "QR2: \n" << camera[cam2 - 1].qR << "\n";
-    //cout << "R: \n" << R << "\n";
+    //qDebug() << "h: \n" << h << "\n";
+    //qDebug() << "fL: \n" << fL << "\n";
+    //qDebug() << "QR1: \n" << qR1 << "\n";
+    //qDebug() << "QR2: \n" << qR2 << "\n";
+    //qDebug() << "IQR: \n" << iqR << "\n";
+    //qDebug() << "R: \n" << rotation << "\n";
 
     iCamera.T = interpolateTranslation(camera[cam1 - 1].T, camera[cam2 - 1].T, h);
     RT << R(0, 0), R(0, 1), R(0, 2), iCamera.T(0, 0),
@@ -540,42 +432,72 @@ void MainWindow::on_interpolateButton_clicked()
           R(2, 0), R(2, 1), R(2, 2), iCamera.T(2, 0);
 
     iCamera.P = iCamera.K * RT;
+    /*float values[] = {
+        (float)iCamera.P(0,0), (float)iCamera.P(0,1), (float)iCamera.P(0,2), (float)iCamera.P(0,3),
+        (float)iCamera.P(1,0), (float)iCamera.P(1,1), (float)iCamera.P(1,2), (float)iCamera.P(1,3),
+        (float)iCamera.P(2,0), (float)iCamera.P(2,1), (float)iCamera.P(2,2), (float)iCamera.P(2,3)
+    };
+    QMatrix4x3 cameraM(values);*/
 
     //cout << "RT: \n" << RT << "\n";
-    //cout << "P: \n" << iCamera.P << "\n";
+    //qDebug() << "P: \n" << cameraM << "\n";
+    xy(0, 0) = 0;
+    xy(1, 0) = 0;
+    for(int idx = 0; idx < MAX_POINTS; idx++) {
+        iCamera.image2DPoint[idx].x = 0;
+        iCamera.image2DPoint[idx].y = 0;
+        iCamera.image2DPoint[idx].pointRGB.r = 0;
+        iCamera.image2DPoint[idx].pointRGB.g = 0;
+        iCamera.image2DPoint[idx].pointRGB.b = 0;
+        dV[idx] = xy;
+    }
 
-    QString pointData = "data.pts";
-    QFile file(pointData);
-    if (file.open(QIODevice::ReadWrite)) {
-        QTextStream stream(&file);
-        for (int i = 0; i < numOfPoint; i++) {
-            if (!(iCamera.p3DPoint[i].x == 0 && iCamera.p3DPoint[i].y == 0 && iCamera.p3DPoint[i].z == 0)) {
-                Vector4d p3D;
-                Vector3d p2D;
-                p3D << iCamera.p3DPoint[i].x, iCamera.p3DPoint[i].y, iCamera.p3DPoint[i].z, 1;
-                p2D = iCamera.P * p3D;
+    qDebug() << "P:\n"
+             << camera[cam1 - 1].P(0,0) << "\t" << camera[cam1 - 1].P(0,1) << "\t" << camera[cam1 - 1].P(0,2) << "\t" << camera[cam1 - 1].P(0,3) << "\n"
+             << camera[cam1 - 1].P(1,0) << "\t" << camera[cam1 - 1].P(1,1) << "\t" << camera[cam1 - 1].P(1,2) << "\t" << camera[cam1 - 1].P(1,3) << "\n"
+             << camera[cam1 - 1].P(2,0) << "\t" << camera[cam1 - 1].P(2,1) << "\t" << camera[cam1 - 1].P(2,2) << "\t" << camera[cam1 - 1].P(2,3) << "\n";
 
-                iCamera.image2DPoint[i].x = p2D(0, 0) / p2D(2, 0);
-                iCamera.image2DPoint[i].y = p2D(1, 0) / p2D(2, 0);
-                iCamera.image2DPoint[i].pointRGB = camera[cam1 - 1].image2DPoint[i].pointRGB;
-                xy(0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
-                xy(1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
-                dV[i] = xy;
+    qDebug() << "iP:\n"
+             << iCamera.P(0,0) << "\t" << iCamera.P(0,1) << "\t" << iCamera.P(0,2) << "\t" << iCamera.P(0,3) << "\n"
+             << iCamera.P(1,0) << "\t" << iCamera.P(1,1) << "\t" << iCamera.P(1,2) << "\t" << iCamera.P(1,3) << "\n"
+             << iCamera.P(2,0) << "\t" << iCamera.P(2,1) << "\t" << iCamera.P(2,2) << "\t" << iCamera.P(2,3) << "\n";
+
+    QString fileName = "data.pts";
+    QFile file(fileName);
+    file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+    QTextStream stream(&file);
+    for (int i = 0; i < numOfPoint; i++) {
+        if (!(iCamera.p3DPoint[i].x == 0 && iCamera.p3DPoint[i].y == 0 && iCamera.p3DPoint[i].z == 0)) {
+            Vector4d p3D;
+            Vector3d p2D;
+            p3D << camera[cam1 - 1].p3DPoint[i].x, camera[cam1 - 1].p3DPoint[i].y, camera[cam1 - 1].p3DPoint[i].z, 1;
+            p2D = iCamera.P * p3D;
+
+            iCamera.image2DPoint[i].x = p2D(0, 0) / p2D(2, 0);
+            iCamera.image2DPoint[i].y = p2D(1, 0) / p2D(2, 0);
+            iCamera.image2DPoint[i].pointRGB = camera[cam1 - 1].image2DPoint[i].pointRGB;
+            xy(0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
+            xy(1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
+            dV[i] = xy;
+            //qDebug() << "o: " << p2DD(0, 0) / p2DD(2, 0) << "\t" << p2DD(1, 0) / p2DD(2, 0) << "\n";
+            //qDebug() << iCamera.image2DPoint[i].x << "\t" << iCamera.image2DPoint[i].y << "\n\n";
+            //qDebug() << "Index: " << i << "\n";
+            //qDebug() << iCamera.image2DPoint[i].x << "\t" << camera[cam1 - 1].image2DPoint[i].x << "\n";
+            //qDebug() << iCamera.image2DPoint[i].y << "\t" << camera[cam1 - 1].image2DPoint[i].y << "\n\n";
+            //qDebug() << xy(0,0) << "\t" << xy(1,0) << "\n\n";
                 //dV[i](0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
                 //dV[i](1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
-            }
-            else {
-                iCamera.image2DPoint[i].x = 10000;
-                iCamera.image2DPoint[i].y = 10000;
-                xy(0, 0) = 0;
-                xy(1, 0) = 0;
-                dV[i] = xy;
-                //dV[i](0, 0) = 10000; //ignored points
-                //dV[i](1, 0) = 10000; //ignored points
-            }
-            stream << iCamera.image2DPoint[i].x << "\t" << iCamera.image2DPoint[i].y << endl;
         }
+        else {
+            iCamera.image2DPoint[i].x = 10000;
+            iCamera.image2DPoint[i].y = 10000;
+            xy(0, 0) = 10000;
+            xy(1, 0) = 10000;
+            dV[i] = xy;
+        }
+        stream << iCamera.image2DPoint[i].x << " " << iCamera.image2DPoint[i].y << endl;
     }
+    //pixelMapping(numOfPoint, dV, imageCentreX * 2, imageCentreY * 2);
     showIImage(numOfPoint);
 }
 
@@ -583,14 +505,18 @@ void MainWindow::on_interpolateButton_clicked()
 //find all the matching 3D points between two cameras
 void MainWindow::on_matchButton_clicked()
 {
-    writeQueryToFile(imageCentreX, imageCentreY);
+    writeQueryToFile(imageCentreX * 2, imageCentreY * 2);
     ui->matchButton->setEnabled(false);
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
     numOfPoint = 0;
-
+    for(int idx = 0; idx < MAX_POINTS; idx++) {
+        iCamera.p3DPoint[idx].x = 0;
+        iCamera.p3DPoint[idx].y = 0;
+        iCamera.p3DPoint[idx].z = 0;
+    }
     for(int pointIndex = 0; pointIndex < MAX_POINTS; pointIndex++) {
         if(camera[cam1 - 1].p3DPoint[pointIndex].x == 0 && camera[cam1 - 1].p3DPoint[pointIndex].y == 0 && camera[cam1 - 1].p3DPoint[pointIndex].z == 0) {
             qDebug() << "number of points: " << pointIndex << "\n";
@@ -607,6 +533,11 @@ void MainWindow::on_matchButton_clicked()
                 iCamera.p3DPoint[pointIndex].y = camera[cam1 - 1].p3DPoint[pointIndex].y;
                 iCamera.p3DPoint[pointIndex].z = camera[cam1 - 1].p3DPoint[pointIndex].z;
                 break;
+            }
+            else {
+                iCamera.p3DPoint[pointIndex].x = 0;
+                iCamera.p3DPoint[pointIndex].y = 0;
+                iCamera.p3DPoint[pointIndex].z = 0;
             }
         }
         numOfPoint++;
@@ -625,6 +556,7 @@ void MainWindow::on_selectButton_clicked()
     ui->interpolateButton->setEnabled(false);
     QString cIndex = ui->cam1Box->currentText();
     int camIndex = cIndex.toInt() - 1;
+    oCamInd = camIndex;
     int i = 0;
     int neighbourCam1 = -1;
     int neighbourCam2 = -1;
@@ -637,7 +569,7 @@ void MainWindow::on_selectButton_clicked()
     QPixmap image(filePath);
     QGraphicsScene * scene = new QGraphicsScene();
     ui->imgView->setScene(scene);
-    scene->addPixmap(image.scaled(imageCentreX, imageCentreY));
+    scene->addPixmap(image.scaled(imageCentreX * 2, imageCentreY * 2));
 
     for(i = 0; i < cameraCount; i++) {
         if ((camera[i].image2DPoint[0].x != 0.0) && (camera[i].image2DPoint[0].y != 0.0)) {
@@ -668,71 +600,12 @@ void MainWindow::on_selectButton_clicked()
 
 void MainWindow::on_getRGBValButton_clicked()
 {
-    /*int	k = 5;
-    int	dim	= 2;
-    double eps = 0;
-    int maxPts = pointCount;
+    QImage image = pixelMapping(numOfPoint, dV, imageCentreX * 2, imageCentreY * 2, oCamInd);
 
-    istream* dataIn	= NULL;
-    istream* queryIn = NULL;
+    QGraphicsScene * scene = new QGraphicsScene();
+    ui->graphicsView->setScene(scene);
 
-    int					nPts;
-    ANNpointArray		dataPts;
-    ANNpoint			queryPt;
-    ANNidxArray			nnIdx;
-    ANNdistArray		dists;
-    ANNkd_tree*			kdTree;
-
-    queryPt = annAllocPt(dim);
-    dataPts = annAllocPts(maxPts, dim);
-    nnIdx = new ANNidx[k];
-    dists = new ANNdist[k];
-
-    static ifstream dataStream;
-    static ifstream queryStream;
-
-    dataStream.open("data.pts");
-    dataIn = &dataStream;
-    queryStream.open("query.pts");
-    queryIn = &queryStream;
-
-    nPts = 0;
-    cout << "Data Points:\n";
-
-    //qDebug() << "Reached\n";
-
-    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
-        printPt(cout, dataPts[nPts], dim);
-        nPts++;
-    }
-
-    kdTree = new ANNkd_tree(
-                    dataPts,
-                    nPts,
-                    dim);
-
-    while (readPt(*queryIn, queryPt, dim)) {
-        cout << "Query point: ";
-        printPt(cout, queryPt, dim);
-
-        kdTree->annkSearch(
-                queryPt,
-                k,
-                nnIdx,
-                dists,
-                eps);
-
-        cout << "\tNN:\tIndex\tDistance\n";
-        for (int i = 0; i < k; i++) {
-            dists[i] = sqrt(dists[i]);
-            cout << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
-        }
-    }
-    delete [] nnIdx;
-    delete [] dists;
-    delete kdTree;
-    annClose();*/
-    pixelMapping();
+    scene->addPixmap(QPixmap::fromImage(image));
     //getPixel
     //update graphics view
 }

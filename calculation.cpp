@@ -1,4 +1,7 @@
 #include "calculation.h"
+#include "iodata.h"
+#include <QDebug>
+#include <QFile>
 
 using namespace std;
 
@@ -100,8 +103,115 @@ Vector3d interpolateTranslation(Vector3d a, Vector3d b, double h) {
 
 double focalLen(double a, double b, double h) {
     double hFocalLen;
-    hFocalLen = a + h * abs(b - a);
-
+    if (a < b) {
+        hFocalLen = a + h * abs(b - a);
+    }
+    else if (a > b) {
+        hFocalLen = a - h * abs(b - a);
+    }
+    else {
+        return a;
+    }
     return hFocalLen;
+}
+
+bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
+{
+    for (int i = 0; i < dim; i++) {
+        if(!(in >> p[i])) return false;
+    }
+    return true;
+}
+
+QImage pixelMapping(int numOfPoint, MatrixXd dV[], int x, int y, int camIndex) {
+    QString fileName = "dv.txt";
+    double wi = 0;
+    double wiSum = 0;
+    Vector2d dp;
+
+    int pIdx = 0;
+
+    int	k = 3;
+    int	dim	= 2;
+    double eps = 0;
+    int maxPts = numOfPoint;
+
+    istream* dataIn	= NULL;
+    istream* queryIn = NULL;
+
+    int					nPts;
+    ANNpointArray		dataPts;
+    ANNpoint			queryPt;
+    ANNidxArray			nnIdx;
+    ANNdistArray		dists;
+    ANNkd_tree*			kdTree;
+
+    queryPt = annAllocPt(dim);
+    dataPts = annAllocPts(maxPts, dim);
+    nnIdx = new ANNidx[k];
+    dists = new ANNdist[k];
+
+    static ifstream dataStream;
+    static ifstream queryStream;
+
+    dataStream.open("data.pts");
+    dataIn = &dataStream;
+    queryStream.open("query.pts");
+    queryIn = &queryStream;
+
+    nPts = 0;
+    //cout << "Data Points:\n";
+
+    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
+        nPts++;
+    }
+
+    kdTree = new ANNkd_tree(
+                    dataPts,
+                    nPts,
+                    dim);
+
+
+    QFile file(fileName);
+    file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+    QTextStream stream(&file);
+
+    while (readPt(*queryIn, queryPt, dim)) {
+        Vector2d widiSum;
+        widiSum << 0, 0;
+        wiSum = 0;
+        //qDebug() << "Query point: ";
+        //printPt(cout, queryPt, dim);
+
+        kdTree->annkSearch(
+                queryPt,
+                k,
+                nnIdx,
+                dists,
+                eps);
+
+        //qDebug() << "\tNN:\tIndex\tDistance\n";
+        for (int i = 0; i < k; i++) {
+            dists[i] = sqrt(dists[i]);
+            wi = exp(-0.01 * dists[i]);
+            wiSum += wi;
+            widiSum += wi * dV[nnIdx[i]];
+            //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
+            //qDebug() << "\t" << dists[i] << "\n";
+            //qDebug() << wi << "\n";
+        }
+        dp(0,0) = widiSum(0,0) / wiSum;
+        dp(1,0) = widiSum(1,0) / wiSum;
+        //qDebug() << dp(0,0) << "\n";
+        stream << dp(0,0) << " " << dp(1,0) << endl;
+    }
+    file.close();
+    dataStream.close();
+    queryStream.close();
+    delete [] nnIdx;
+    delete [] dists;
+    delete kdTree;
+    annClose();
+    return showRGBImg(camIndex);
 }
 
