@@ -131,7 +131,7 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int x, int y, int camIndex) {
 
     int pIdx = 0;
 
-    int	k = 3;
+    int	k = 50;
     int	dim	= 2;
     double eps = 0;
     int maxPts = numOfPoint;
@@ -174,8 +174,9 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int x, int y, int camIndex) {
 
     QFile file(fileName);
     file.open(QIODevice::WriteOnly | QIODevice::Truncate);
-    QTextStream stream(&file);
+    QTextStream dVFile(&file);
 
+    int numofpoint = 0;
     while (readPt(*queryIn, queryPt, dim)) {
         Vector2d widiSum;
         widiSum << 0, 0;
@@ -191,20 +192,32 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int x, int y, int camIndex) {
                 eps);
 
         //qDebug() << "\tNN:\tIndex\tDistance\n";
+        int points = 0;
         for (int i = 0; i < k; i++) {
             dists[i] = sqrt(dists[i]);
-            wi = exp(-0.01 * dists[i]);
-            wiSum += wi;
-            widiSum += wi * dV[nnIdx[i]];
+            if (dists[i] <= 300) {
+                points++;
+                wi = exp(0.008 * dists[i]);
+                wiSum += wi;
+                widiSum += wi * dV[nnIdx[i]];
+            }
             //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
             //qDebug() << "\t" << dists[i] << "\n";
             //qDebug() << wi << "\n";
         }
-        dp(0,0) = widiSum(0,0) / wiSum;
-        dp(1,0) = widiSum(1,0) / wiSum;
-        //qDebug() << dp(0,0) << "\n";
-        stream << dp(0,0) << " " << dp(1,0) << endl;
+        qDebug() << "sampled points: " << points << "\n";
+        if (points == 0) {
+            dVFile << 10000 << " " << 10000 << endl;
+        }
+        else {
+            dp(0,0) = widiSum(0,0) / wiSum;
+            dp(1,0) = widiSum(1,0) / wiSum;
+            //qDebug() << dp(0,0) << "\n";
+            dVFile << dp(0,0) << " " << dp(1,0) << endl;
+        }
+        numofpoint++;
     }
+    //qDebug() << "numofpoint: " << numofpoint << "\n";
     file.close();
     dataStream.close();
     queryStream.close();

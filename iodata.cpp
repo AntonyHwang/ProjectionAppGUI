@@ -302,10 +302,10 @@ void readPatchFile(cameraInfo camera[]) {
 void writeQueryToFile(int maxX, int maxY) {
     QString pointData = "query.pts";
     QFile file(pointData);
-    if (file.open(QIODevice::ReadWrite)) {
+    if (file.open(QIODevice::ReadWrite | QIODevice::Truncate)) {
         QTextStream stream(&file);
-        for (int x = 0; x <= maxX; x++) {
-            for (int y = 0; y <= maxY; y++) {
+        for (int x = 0; x < maxX; x++) {
+            for (int y = 0; y < maxY; y++) {
                 stream << x << "\t" << y << endl;
             }
         }
@@ -337,7 +337,7 @@ QImage showRGBImg(int camIndex) {
     double imageCentreX = 414.0;
     double imageCentreY = 646.0;
     QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
-    image.fill(QColor(Qt::black).rgb());
+    image.fill(QColor(Qt::white).rgb());
     QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
     QImage oImage = QImage(filePath);
     QFile inputFile("dv.txt");
@@ -346,8 +346,8 @@ QImage showRGBImg(int camIndex) {
        QTextStream in(&inputFile);
        while (!in.atEnd())
        {
-           for (int ix = 0; ix <= imageCentreX * 2; ix++) {
-               for (int iy = 0; iy <= imageCentreY * 2; iy++) {
+           for (int ix = 0; ix < imageCentreX * 2; ix++) {
+               for (int iy = 0; iy < imageCentreY * 2; iy++) {
                    QString x, y;
                    int px, py;
                    QString line = in.readLine();
@@ -356,9 +356,26 @@ QImage showRGBImg(int camIndex) {
                    //qDebug() << x.toDouble() << "\t" << y.toDouble() << "\n";
                    px = ix - x.toDouble();
                    py = iy - y.toDouble();
+                   if (px < 0) {
+                       px = 0;
+                   }
+                   if (px >= imageCentreX * 2) {
+                       px = imageCentreX * 2 - 1;
+                   }
+                   if (py < 0) {
+                       py = 0;
+                   }
+                   if (py >= imageCentreY * 2) {
+                       py = imageCentreY * 2 - 1;
+                   }
                    QColor c = QColor::fromRgb (oImage.pixel(px,py) );
                    //qDebug() << ix << "\t" << iy << ": " << px << "\t" << py << "\n";
-                   image.setPixel(ix, iy, c.rgb());
+                   if (x == "10000" && y == "10000") {
+                       image.setPixel(ix, iy, QColor(Qt::white).rgb());
+                   }
+                   else {
+                       image.setPixel(ix, iy, c.rgb());
+                   }
                }
            }
        }

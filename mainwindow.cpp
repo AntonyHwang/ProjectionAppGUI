@@ -389,7 +389,6 @@ void MainWindow::showIImage(int numOfPoint)
 //interpolate two different 2D views fro two separate cameras
 void MainWindow::on_interpolateButton_clicked()
 {
-    int start = 1;
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
     MatrixXd RT(3,4);
@@ -432,12 +431,6 @@ void MainWindow::on_interpolateButton_clicked()
           R(2, 0), R(2, 1), R(2, 2), iCamera.T(2, 0);
 
     iCamera.P = iCamera.K * RT;
-    /*float values[] = {
-        (float)iCamera.P(0,0), (float)iCamera.P(0,1), (float)iCamera.P(0,2), (float)iCamera.P(0,3),
-        (float)iCamera.P(1,0), (float)iCamera.P(1,1), (float)iCamera.P(1,2), (float)iCamera.P(1,3),
-        (float)iCamera.P(2,0), (float)iCamera.P(2,1), (float)iCamera.P(2,2), (float)iCamera.P(2,3)
-    };
-    QMatrix4x3 cameraM(values);*/
 
     //cout << "RT: \n" << RT << "\n";
     //qDebug() << "P: \n" << cameraM << "\n";
@@ -485,8 +478,6 @@ void MainWindow::on_interpolateButton_clicked()
             //qDebug() << iCamera.image2DPoint[i].x << "\t" << camera[cam1 - 1].image2DPoint[i].x << "\n";
             //qDebug() << iCamera.image2DPoint[i].y << "\t" << camera[cam1 - 1].image2DPoint[i].y << "\n\n";
             //qDebug() << xy(0,0) << "\t" << xy(1,0) << "\n\n";
-                //dV[i](0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
-                //dV[i](1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
         }
         else {
             iCamera.image2DPoint[i].x = 10000;
@@ -603,7 +594,7 @@ void MainWindow::on_getRGBValButton_clicked()
     QImage image = pixelMapping(numOfPoint, dV, imageCentreX * 2, imageCentreY * 2, oCamInd);
 
     QGraphicsScene * scene = new QGraphicsScene();
-    ui->graphicsView->setScene(scene);
+    ui->colorView->setScene(scene);
 
     scene->addPixmap(QPixmap::fromImage(image));
     //getPixel
@@ -648,4 +639,9 @@ void MainWindow::on_interpolateSlider_actionTriggered(int action)
 void MainWindow::on_sliderSpinner_valueChanged(int arg1)
 {
     on_interpolateButton_clicked();
+}
+
+void MainWindow::on_cam2Box_currentTextChanged(const QString &arg1)
+{
+    ui->matchButton->setEnabled(true);
 }
