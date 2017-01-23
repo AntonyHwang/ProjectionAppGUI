@@ -243,6 +243,32 @@
        <widget class="QSpinBox" name="sliderSpinner"/>
       </item>
       <item>
+       <widget class="QPushButton" name="getRGBValButton">
+        <property name="maximumSize">
+         <size>
+          <width>100</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Colour</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="getRGBValImpButton">
+        <property name="maximumSize">
+         <size>
+          <width>130</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Improved Colour</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="interpolateButton">
         <property name="maximumSize">
          <size>
@@ -271,7 +297,17 @@
      </layout>
     </item>
     <item>
-     <widget class="QGraphicsView" name="graphicsView"/>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QGraphicsView" name="imgView"/>
+      </item>
+      <item>
+       <widget class="QGraphicsView" name="graphicsView"/>
+      </item>
+      <item>
+       <widget class="QGraphicsView" name="colorView"/>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>

@@ -39,6 +39,8 @@ private slots:
 
     void on_cam2Box_currentTextChanged(const QString &arg1);
 
+    void on_getRGBValImpButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     void runCalc();

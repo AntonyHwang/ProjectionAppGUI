@@ -1,7 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "calculation.h"
-#include "iodata.h"
 //#include "data.h"
 
 #include <math.h>
@@ -70,15 +69,15 @@ void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
 void MainWindow::runCalc() {
     //int cameraCount = 0;
     initialiseK();
-    //qDebug() << "K initialised";
+    qDebug() << "K initialised";
     cameraCount = readCamFile(camera);//contains camera information
-    //qDebug() << "cam file read";
+    qDebug() << "cam file read";
     readPFiles(camera, cameraCount);//contains the camera matrix of each camera
-    //qDebug() << "P file read";
+    qDebug() << "P file read";
     processPLYFile();
-    //qDebug() << "processed";
+    qDebug() << "processed";
     readPatchFile(camera);//contains the the 3D coordinates
-    //qDebug() << "Patch file read";
+    qDebug() << "Patch file read";
     //cout << "\nreached\n";
 }
 
@@ -171,7 +170,7 @@ void MainWindow::on_showButton2_clicked()
             double rad = 1;
             scene->addEllipse(camera[cameraIndex].image2DPoint[i].x / 2.0, camera[cameraIndex].image2DPoint[i].y / 2.0, rad, rad,
                         QPen(), QBrush(Qt::SolidPattern));
-                        cout << "x: " << camera[cameraIndex].image2DPoint[i].x << " y: " << camera[cameraIndex].image2DPoint[i].y << "\n";
+                        //cout << "x: " << camera[cameraIndex].image2DPoint[i].x << " y: " << camera[cameraIndex].image2DPoint[i].y << "\n";
             //points.append(QPointF(camera[cameraIndex].image2DPoint[i].x, camera[cameraIndex].image2DPoint[i].y));
             numPoints++;
         }
@@ -362,27 +361,21 @@ void MainWindow::on_loadButton_clicked()
 }
 
 //display interpolated image when interpolate button is clicked
-void MainWindow::showIImage(int numOfPoint)
+void MainWindow::showIImage(int numOfPoints)
 {
-    QVector<QPointF> points;
-    int numPoints = 0;
-
-    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
+    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB32);
     image.fill(QColor(Qt::black).rgb());
 
-    for(int i = 0; i < numOfPoint; i++) {
+    for(int i = 0; i < numOfPoints; i++) {
         if(iCamera.image2DPoint[i].x != 0 && iCamera.image2DPoint[i].y != 0 && iCamera.image2DPoint[i].x != 10000 && iCamera.image2DPoint[i].y != 10000) {
-            image.setPixel(int(iCamera.image2DPoint[i].x), int(iCamera.image2DPoint[i].y),
+            image.setPixel(int(iCamera.image2DPoint[i].x) / 2, int(iCamera.image2DPoint[i].y) / 2,
                             qRgb(iCamera.image2DPoint[i].pointRGB.r, iCamera.image2DPoint[i].pointRGB.g, iCamera.image2DPoint[i].pointRGB.b));
         }
-        numPoints++;
     }
-
     QGraphicsScene * scene = new QGraphicsScene();
     ui->graphicsView->setScene(scene);
 
     scene->addPixmap(QPixmap::fromImage(image));
-    //pixelMapping();
 }
 
 //interpolate button function
@@ -391,51 +384,32 @@ void MainWindow::on_interpolateButton_clicked()
 {
     QString c1Index = ui->cam1Box->currentText();
     QString c2Index = ui->cam2Box->currentText();
-    MatrixXd RT(3,4);
-    Matrix3d R;
-    MatrixXd xy(2, 1);
-    double h = ui->sliderSpinner->value();
-    h = h / 10.0;
     int cam1 = c1Index.toInt();
     int cam2 = c2Index.toInt();
 
-    double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, h);
+    double t = ui->sliderSpinner->value() / 10.0;
+
+    MatrixXd RT(3,4);
+    MatrixXd xy(2, 1);
+
+    double fL = focalLen(camera[cam1 - 1].focalLen, camera[cam2 - 1].focalLen, t);
     iCamera.K << fL, 0, imageCentreX,
                  0, fL, imageCentreY,
                  0, 0, 1;
 
-    Quaterniond qR1, qR2, iqR;
-    qR1 = {camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0)};
-    qR2 = {camera[cam2 - 1].qR(0, 0), camera[cam2 - 1].qR(1, 0), camera[cam2 - 1].qR(2, 0), camera[cam2 - 1].qR(3, 0)};
-    //QQuaternion qR1, qR2, iqR;
-    //QMatrix3x3 rotation;
-    //qR1 = QQuaternion(camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0));
-    //qR2 = QQuaternion(camera[cam2 - 1].qR(0, 0), camera[cam2 - 1].qR(1, 0), camera[cam2 - 1].qR(2, 0), camera[cam2 - 1].qR(3, 0));
-    //iqR = QQuaternion::slerp(qR1, qR2, h);
-    //rotation = iqR.toRotationMatrix();
+    iCamera.R = interpolateQR(camera, cam1, cam2, t);
 
-    iqR = qR1.slerp(h, qR2);
-    R = iqR.toRotationMatrix();
-    //cout << "QR1: \n" << camera[cam1 - 1].qR << "\n";
-    //cout << "QR2: \n" << camera[cam2 - 1].qR << "\n";
-    //qDebug() << "h: \n" << h << "\n";
-    //qDebug() << "fL: \n" << fL << "\n";
-    //qDebug() << "QR1: \n" << qR1 << "\n";
-    //qDebug() << "QR2: \n" << qR2 << "\n";
-    //qDebug() << "IQR: \n" << iqR << "\n";
-    //qDebug() << "R: \n" << rotation << "\n";
+    iCamera.T = interpolateTranslation(camera[cam1 - 1].T, camera[cam2 - 1].T, t);
 
-    iCamera.T = interpolateTranslation(camera[cam1 - 1].T, camera[cam2 - 1].T, h);
-    RT << R(0, 0), R(0, 1), R(0, 2), iCamera.T(0, 0),
-          R(1, 0), R(1, 1), R(1, 2), iCamera.T(1, 0),
-          R(2, 0), R(2, 1), R(2, 2), iCamera.T(2, 0);
+    RT << iCamera.R(0, 0), iCamera.R(0, 1), iCamera.R(0, 2), iCamera.T(0, 0),
+          iCamera.R(1, 0), iCamera.R(1, 1), iCamera.R(1, 2), iCamera.T(1, 0),
+          iCamera.R(2, 0), iCamera.R(2, 1), iCamera.R(2, 2), iCamera.T(2, 0);
 
     iCamera.P = iCamera.K * RT;
 
-    //cout << "RT: \n" << RT << "\n";
-    //qDebug() << "P: \n" << cameraM << "\n";
     xy(0, 0) = 0;
     xy(1, 0) = 0;
+
     for(int idx = 0; idx < MAX_POINTS; idx++) {
         iCamera.image2DPoint[idx].x = 0;
         iCamera.image2DPoint[idx].y = 0;
@@ -445,17 +419,7 @@ void MainWindow::on_interpolateButton_clicked()
         dV[idx] = xy;
     }
 
-    qDebug() << "P:\n"
-             << camera[cam1 - 1].P(0,0) << "\t" << camera[cam1 - 1].P(0,1) << "\t" << camera[cam1 - 1].P(0,2) << "\t" << camera[cam1 - 1].P(0,3) << "\n"
-             << camera[cam1 - 1].P(1,0) << "\t" << camera[cam1 - 1].P(1,1) << "\t" << camera[cam1 - 1].P(1,2) << "\t" << camera[cam1 - 1].P(1,3) << "\n"
-             << camera[cam1 - 1].P(2,0) << "\t" << camera[cam1 - 1].P(2,1) << "\t" << camera[cam1 - 1].P(2,2) << "\t" << camera[cam1 - 1].P(2,3) << "\n";
-
-    qDebug() << "iP:\n"
-             << iCamera.P(0,0) << "\t" << iCamera.P(0,1) << "\t" << iCamera.P(0,2) << "\t" << iCamera.P(0,3) << "\n"
-             << iCamera.P(1,0) << "\t" << iCamera.P(1,1) << "\t" << iCamera.P(1,2) << "\t" << iCamera.P(1,3) << "\n"
-             << iCamera.P(2,0) << "\t" << iCamera.P(2,1) << "\t" << iCamera.P(2,2) << "\t" << iCamera.P(2,3) << "\n";
-
-    QString fileName = "data.pts";
+    QString fileName = "output/data.pts";
     QFile file(fileName);
     file.open(QIODevice::WriteOnly | QIODevice::Truncate);
     QTextStream stream(&file);
@@ -472,12 +436,6 @@ void MainWindow::on_interpolateButton_clicked()
             xy(0, 0) = iCamera.image2DPoint[i].x - camera[cam1 - 1].image2DPoint[i].x;
             xy(1, 0) = iCamera.image2DPoint[i].y - camera[cam1 - 1].image2DPoint[i].y;
             dV[i] = xy;
-            //qDebug() << "o: " << p2DD(0, 0) / p2DD(2, 0) << "\t" << p2DD(1, 0) / p2DD(2, 0) << "\n";
-            //qDebug() << iCamera.image2DPoint[i].x << "\t" << iCamera.image2DPoint[i].y << "\n\n";
-            //qDebug() << "Index: " << i << "\n";
-            //qDebug() << iCamera.image2DPoint[i].x << "\t" << camera[cam1 - 1].image2DPoint[i].x << "\n";
-            //qDebug() << iCamera.image2DPoint[i].y << "\t" << camera[cam1 - 1].image2DPoint[i].y << "\n\n";
-            //qDebug() << xy(0,0) << "\t" << xy(1,0) << "\n\n";
         }
         else {
             iCamera.image2DPoint[i].x = 10000;
@@ -488,7 +446,6 @@ void MainWindow::on_interpolateButton_clicked()
         }
         stream << iCamera.image2DPoint[i].x << " " << iCamera.image2DPoint[i].y << endl;
     }
-    //pixelMapping(numOfPoint, dV, imageCentreX * 2, imageCentreY * 2);
     showIImage(numOfPoint);
 }
 
@@ -560,7 +517,7 @@ void MainWindow::on_selectButton_clicked()
     QPixmap image(filePath);
     QGraphicsScene * scene = new QGraphicsScene();
     ui->imgView->setScene(scene);
-    scene->addPixmap(image.scaled(imageCentreX * 2, imageCentreY * 2));
+    scene->addPixmap(image.scaled(imageCentreX, imageCentreY));
 
     for(i = 0; i < cameraCount; i++) {
         if ((camera[i].image2DPoint[0].x != 0.0) && (camera[i].image2DPoint[0].y != 0.0)) {
@@ -591,15 +548,24 @@ void MainWindow::on_selectButton_clicked()
 
 void MainWindow::on_getRGBValButton_clicked()
 {
-    QImage image = pixelMapping(numOfPoint, dV, imageCentreX * 2, imageCentreY * 2, oCamInd);
+    QImage image = pixelMapping(numOfPoint, dV, oCamInd);
 
     QGraphicsScene * scene = new QGraphicsScene();
     ui->colorView->setScene(scene);
 
     scene->addPixmap(QPixmap::fromImage(image));
-    //getPixel
-    //update graphics view
 }
+
+void MainWindow::on_getRGBValImpButton_clicked()
+{
+    QImage image = pixelMappingImproved(numOfPoint, dV, oCamInd);
+
+    QGraphicsScene * scene = new QGraphicsScene();
+    ui->colorView->setScene(scene);
+
+    scene->addPixmap(QPixmap::fromImage(image));
+}
+
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),

@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QElapsedTimer>
 
 double stringToDouble(string s) {
     double d = atof(s.c_str());
@@ -68,88 +69,97 @@ string getFileName(string fileType, int index) {
 
 int readCamFile(cameraInfo camera[]) {
     int lineCount = 1;
-    string line;
-    ifstream camfile ("cameraData/cameras_v2.txt");
-    string RMatrix;
-    int cameraCount = 0;
+    int numCameras = 0;
+    int cameraIdx = 0;
     Vector3d r1;
     Vector3d r2;
-    if (camfile.is_open()) {
-        while (getline(camfile, line)) {
-            if (lineCount == 3) {
-                //storing focal length
-                cameraCount++;
-                //cout << "\n" << "Storing camera " << cameraCount << "\n";
-                camera[cameraCount - 1].focalLen = stringToDouble(line);
-                camera[cameraCount - 1].K(0,0) = camera[cameraCount - 1].focalLen;
-                camera[cameraCount - 1].K(1,1) = camera[cameraCount - 1].focalLen;
-                //cout << "K: \n" << camera[cameraCount - 1].K << "\n";
-            }
-            else if (lineCount == 4) {
-                //storing Translation T
-                double x, y, z;
-                camfile >> x >> y >> z;
-                camera[cameraCount - 1].T << x, y, z;
-                //cout << "T: \n" << camera[cameraCount - 1].T << "\n";
-            }
-            else if (lineCount == 5) {
-                //storing Camera position C
-                double x, y, z;
-                camfile >> x >> y >> z;
-                camera[cameraCount - 1].C << x, y, z;
-                //cout << "C: \n" << camera[cameraCount - 1].C << "\n";
-            }
-            else if (lineCount == 6) {
-                //storing Axis angle format of R
-                double x, y, z;
-                camfile >> x >> y >> z;
-                camera[cameraCount - 1].aR << x, y, z;
-                //cout << "aR: \n" << camera[cameraCount - 1].aR << "\n";
-            }
-            else if (lineCount == 7) {
-                //storign Quaternion format of R
-                double x, y, z, t;
-                camfile >> x >> y >> z >> t;
-                camera[cameraCount - 1].qR << x, y, z, t;
-                //cout << "qR: \n" << camera[cameraCount - 1].qR << "\n";
-            }
-            else if (lineCount == 8) {
-                //storing Matrix format of R
-                double x1, x2, x3;
-                camfile >> x1 >> x2 >> x3;
-                r1 << x1, x2, x3;
-            }
-            else if (lineCount == 9) {
-                double y1, y2, y3;
-                camfile >> y1 >> y2 >> y3;
-                r2 << y1, y2, y3;
-                //r3 = join_cols(r1, r2);
-            }
-            else if (lineCount == 10) {
-                double z1, z2, z3;
-                camfile >> z1 >> z2 >> z3;
-                camera[cameraCount - 1].R << r1(0,0), r1(1,0), r1(2,0),
-                                             r2(0,0), r2(1,0), r2(2,0),
-                                             z1, z2, z3;
-                //cout << "R: \n" << camera[cameraCount - 1].R << "\n";
-            }
-            else if (lineCount == 12) {
-                //storing Normalized radial distortion
-                stringstream convert(line);
-                convert >> camera[cameraCount - 1].rD;
-                //cout << "rD: \n" << camera[cameraCount - 1].rD << "\n";
-            }
-            if (lineCount > 14) {
-                lineCount = 1;
-            }
-            lineCount++;
-            if (camfile.eof()) {
-                camfile.close();
-            }
-        }
+
+    QFile camFile("cameraData/cameras_v2.txt");
+    if (camFile.open(QIODevice::ReadOnly))
+    {
+       QTextStream in(&camFile);
+       while (!in.atEnd())
+       {
+           QString line = in.readLine();
+           QStringList numbers = line.split( " " );
+           //qDebug() << "lineNum: " << lineCount << "\n";
+           if (lineCount == 21) {
+               //storing focal length
+               cout << "\n" << "Storing camera " << cameraIdx << "\n";
+               camera[cameraIdx].focalLen = line.toDouble();
+               camera[cameraIdx].K(0,0) = camera[cameraIdx].focalLen;
+               camera[cameraIdx].K(1,1) = camera[cameraIdx].focalLen;
+               cout << "K: \n" << camera[cameraIdx].K << "\n";
+               //qDebug() << line.toDouble() << "\n";
+           }
+           else if (lineCount == 22) {
+               //storing image center
+               camera[cameraIdx].imgCentreX = numbers.value(0).toDouble();
+               camera[cameraIdx].imgCentreY = numbers.value(1).toDouble();
+               //qDebug() << camera[cameraCount - 1].imgCentreX << " " << camera[cameraCount - 1].imgCentreY << "\n";
+           }
+           else if (lineCount == 23) {
+               //storing Translation T
+               camera[cameraIdx].T << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
+               cout << "T: \n" << camera[cameraIdx].T << "\n";
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
+           }
+           else if (lineCount == 24) {
+               //storing Camera position C
+               camera[cameraIdx].C << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
+               cout << "C: \n" << camera[cameraIdx].C << "\n";
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
+           }
+           else if (lineCount == 25) {
+               //storing Axis angle format of R
+               camera[cameraIdx].aR << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
+               cout << "aR: \n" << camera[cameraIdx].aR << "\n";
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
+           }
+           else if (lineCount == 26) {
+               //storign Quaternion format of R
+               camera[cameraIdx].qR << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble(), numbers.value(3).toDouble();
+               cout << "qR: \n" << camera[cameraIdx].qR << "\n";
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << numbers.value(3).toDouble() << "\n";
+           }
+           else if (lineCount == 27) {
+               //storing Matrix format of R
+               r1 << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
+           }
+           else if (lineCount == 28) {
+               r2 << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
+           }
+           else if (lineCount == 29) {
+               camera[cameraIdx].R << r1(0,0), r1(1,0), r1(2,0),
+                                      r2(0,0), r2(1,0), r2(2,0),
+                                      numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
+               cout << "R: \n" << camera[cameraIdx].R << "\n";
+               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
+           }
+           else if (lineCount == 30) {
+               //storing Normalized radial distortion
+               camera[cameraIdx].rD = line.toDouble();;
+               cout << "rD: \n" << camera[cameraIdx].rD << "\n";
+               //qDebug() << line.toDouble() << "\n";
+           }
+           else if (lineCount == 17) {
+               numCameras = line.toInt();
+               //qDebug() << line.toInt() << "\n";
+           }
+
+           lineCount++;
+
+           if (lineCount >= 33) {
+               lineCount = 19;
+               cameraIdx++;
+           }
+       }
+       camFile.close();
     }
-    else cout << "Unable to open file";
-    return cameraCount;
+    qDebug() << numCameras << "\n";
+    return numCameras;
 }
 
 void readPFiles(cameraInfo camera[], int cameraCount) {
@@ -181,7 +191,7 @@ void readPFiles(cameraInfo camera[], int cameraCount) {
 void processPLYFile() {
     string line;
     string x, y, z, nx, ny, nz, r, g, b;
-    ofstream tempFile("temp.txt");
+    ofstream tempFile("output/temp.txt");
     int lineCount = 0;
     int currentFile = 0;
     string fileName = "cameraData/patch/" + getFileName("PLY", currentFile);
@@ -247,7 +257,7 @@ void readPatchFile(cameraInfo camera[]) {
     Vector4d point_3D;
     RGB point_RGB;
     int lineCount = 0;
-    ifstream RGBfile ("temp.txt");
+    ifstream RGBfile ("output/temp.txt");
     while (checkFileExist(fileName) == 1) {
         fileName = "cameraData/patch/" + getFileName("Patch", currentFile);
         ifstream patchfile (fileName);
@@ -273,7 +283,7 @@ void readPatchFile(cameraInfo camera[]) {
                     //cout << r << " " << g << " " << b << "\n";
                 }
                 else if (lineCount == 7 || lineCount == 9) {
-                    calculate2DPoint(camera, stringToDouble(firstWord) - 1, point_3D, point_RGB);
+                    calculate2DPoint(camera, stringToDouble(firstWord), point_3D, point_RGB);
                     getline(patchfile, line);
                     stringstream stream(line);
                     while(1) {
@@ -300,7 +310,7 @@ void readPatchFile(cameraInfo camera[]) {
 }
 
 void writeQueryToFile(int maxX, int maxY) {
-    QString pointData = "query.pts";
+    QString pointData = "output/query.pts";
     QFile file(pointData);
     if (file.open(QIODevice::ReadWrite | QIODevice::Truncate)) {
         QTextStream stream(&file);
@@ -340,7 +350,7 @@ QImage showRGBImg(int camIndex) {
     image.fill(QColor(Qt::white).rgb());
     QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
     QImage oImage = QImage(filePath);
-    QFile inputFile("dv.txt");
+    QFile inputFile("output/dv.txt");
     if (inputFile.open(QIODevice::ReadOnly))
     {
        QTextStream in(&inputFile);
@@ -371,15 +381,69 @@ QImage showRGBImg(int camIndex) {
                    QColor c = QColor::fromRgb (oImage.pixel(px,py) );
                    //qDebug() << ix << "\t" << iy << ": " << px << "\t" << py << "\n";
                    if (x == "10000" && y == "10000") {
-                       image.setPixel(ix, iy, QColor(Qt::white).rgb());
+                       image.setPixel(ix / 2, iy / 2, QColor(Qt::white).rgb());
                    }
                    else {
-                       image.setPixel(ix, iy, c.rgb());
+                       image.setPixel(ix / 2, iy / 2, c.rgb());
                    }
                }
            }
        }
        inputFile.close();
     }
+    return image;
+}
+
+QImage showRGBImgImproved(int camIndex) {
+    QElapsedTimer timer;
+    timer.start();
+    double imageCentreX = 414.0;
+    double imageCentreY = 646.0;
+    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
+    image.fill(QColor(Qt::white).rgb());
+    QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
+    QImage oImage = QImage(filePath);
+    QFile inputFile("output/dv.txt");
+    if (inputFile.open(QIODevice::ReadOnly))
+    {
+       QTextStream in(&inputFile);
+       while (!in.atEnd())
+       {
+           for (int ix = 0; ix < imageCentreX * 2; ix++) {
+               for (int iy = 0; iy < imageCentreY * 2; iy++) {
+                   QString x, y;
+                   int px, py;
+                   QString line = in.readLine();
+                   //qDebug() << line << "\n";
+                   in >> x >> y;
+                   //qDebug() << x.toDouble() << "\t" << y.toDouble() << "\n";
+                   px = ix - x.toDouble();
+                   py = iy - y.toDouble();
+                   if (px < 0) {
+                       px = 0;
+                   }
+                   if (px >= imageCentreX * 2) {
+                       px = imageCentreX * 2 - 1;
+                   }
+                   if (py < 0) {
+                       py = 0;
+                   }
+                   if (py >= imageCentreY * 2) {
+                       py = imageCentreY * 2 - 1;
+                   }
+                   QColor c = QColor::fromRgb (oImage.pixel(px,py) );
+                   //qDebug() << ix << "\t" << iy << ": " << px << "\t" << py << "\n";
+                   if (x == "10000" && y == "10000") {
+                       image.setPixel(ix / 2, iy / 2, QColor(Qt::white).rgb());
+                   }
+                   else {
+                       image.setPixel(ix / 2, iy / 2, c.rgb());
+                   }
+               }
+           }
+       }
+       inputFile.close();
+    }
+    qDebug() << "showRGBImg runtime: " << timer.elapsed() * 0.001 << "\n";
     return image;
 }

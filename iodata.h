@@ -29,22 +29,10 @@ struct point3D {
     double z;
 };
 
-/*struct cameraInfo {
-    double focalLen;
-    mat K;//IntrinsicMatrix 3x3
-    mat T;//Translation 3x1
-    mat C;//CameraPosition 3x1
-    mat aR;//AxisAngleR 3x1
-    mat qR;//QuaternionR 4x1
-    mat R;//3x3R
-    double rD;//RadialDistortion
-    mat P;//CameraMatrix
-    point3D p3DPoint [MAX_POINTS];
-    point2D image2DPoint [MAX_POINTS];//2D points
-};*/
-
 struct cameraInfo {
     double focalLen;
+    double imgCentreX;
+    double imgCentreY;
     Matrix3d K;//IntrinsicMatrix 3x3
     Vector3d T;//Translation 3x1
     Vector3d C;//CameraPosition 3x1
@@ -69,3 +57,4 @@ void readPatchFile(cameraInfo camera[]);
 void writeQueryToFile(int maxX, int maxY);
 void writeToFile(int mode, QString fileName, double x, double y);
 QImage showRGBImg(int camIndex);
+QImage showRGBImgImproved(int camIndex);
