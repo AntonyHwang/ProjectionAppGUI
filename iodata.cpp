@@ -346,7 +346,7 @@ void writeToFile(int mode, QString fileName, double x, double y) {
 QImage showRGBImg(int camIndex) {
     double imageCentreX = 414.0;
     double imageCentreY = 646.0;
-    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
+    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB32);
     image.fill(QColor(Qt::white).rgb());
     QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
     QImage oImage = QImage(filePath);
@@ -399,7 +399,7 @@ QImage showRGBImgImproved(int camIndex) {
     timer.start();
     double imageCentreX = 414.0;
     double imageCentreY = 646.0;
-    QImage image = QImage(imageCentreX * 2, imageCentreY * 2, QImage::Format_RGB32);
+    QImage image = QImage(imageCentreX, imageCentreY, QImage::Format_RGB32);
     image.fill(QColor(Qt::white).rgb());
     QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
     QImage oImage = QImage(filePath);
