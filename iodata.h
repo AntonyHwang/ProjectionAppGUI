@@ -55,6 +55,8 @@ void store2DPoint (cameraInfo camera[], int camIndex, double x, double y, RGB po
 void calculate2DPoint(cameraInfo camera[], int index, Vector3d point_3D, RGB point_RGB);
 void readPatchFile(cameraInfo camera[]);
 void writeQueryToFile(int maxX, int maxY);
+void writeQueryToFileImproved(int maxX, int maxY);
 void writeToFile(int mode, QString fileName, double x, double y);
-QImage showRGBImg(int camIndex);
-QImage showRGBImgImproved(int camIndex);
+QImage showRGBImg(int camIndex, cameraInfo camera[]);
+void save_interpolated_data(QImage image, int frame);
+QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame);

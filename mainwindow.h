@@ -41,6 +41,7 @@ private slots:
 
     void on_getRGBValImpButton_clicked();
 
+
 private:
     Ui::MainWindow *ui;
     void runCalc();

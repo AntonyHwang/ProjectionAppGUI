@@ -5,10 +5,10 @@
 
 using namespace std;
 
-Matrix3d interpolateQR(cameraInfo camera[], int cam1, int cam2, double t) {
+Matrix3d interpolateQR(Vector4d cam1_qR, Vector4d cam2_qR, double t) {
     Quaterniond qR1, qR2, iqR;
-    qR1 = {camera[cam1 - 1].qR(0, 0), camera[cam1 - 1].qR(1, 0), camera[cam1 - 1].qR(2, 0), camera[cam1 - 1].qR(3, 0)};
-    qR2 = {camera[cam2 - 1].qR(0, 0), camera[cam2 - 1].qR(1, 0), camera[cam2 - 1].qR(2, 0), camera[cam2 - 1].qR(3, 0)};
+    qR1 = {cam1_qR(0, 0), cam1_qR(1, 0), cam1_qR(2, 0), cam1_qR(3, 0)};
+    qR2 = {cam2_qR(0, 0), cam2_qR(1, 0), cam2_qR(2, 0), cam2_qR(3, 0)};
     iqR = qR1.slerp(t, qR2);
     return iqR.toRotationMatrix();
 }
@@ -42,7 +42,7 @@ bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
     return true;
 }
 
-QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex) {
+QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[]) {
     QElapsedTimer timer;
     timer.start();
     QString fileName = "output/dv.txt";
@@ -111,12 +111,31 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex) {
                 eps);
 
         //qDebug() << "\tNN:\tIndex\tDistance\n";
-        int points = 0;
+        /*int points = 0;
         for (int i = 0; i < k; i++) {
             dists[i] = sqrt(dists[i]);
             if (dists[i] <= 300) {
                 points++;
-                wi = exp(0.008 * dists[i]);
+                wi = exp(-0.008 * dists[i]);
+                wiSum += wi;
+                widiSum += wi * dV[nnIdx[i]];
+            }
+            //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
+            //qDebug() << "\t" << dists[i] << "\n";
+            //qDebug() << wi << "\n";
+        }*/
+
+        int points = 0;
+        double maxDist = 200;
+        double ld = 2.5 / maxDist;
+        for (int i = 0; i < k; i++) {
+            dists[i] = sqrt(dists[i]);
+            if (dists[i] <= maxDist) {
+                points++;
+                wi = exp(-ld * dists[i]);
+                if (wi < 0.1) {
+                    break;
+                }
                 wiSum += wi;
                 widiSum += wi * dV[nnIdx[i]];
             }
@@ -145,10 +164,10 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex) {
     delete kdTree;
     annClose();
     qDebug() << "pixelMapping runtime: " << timer.elapsed() * 0.001 << "\n";
-    return showRGBImg(camIndex);
+    return showRGBImg(camIndex, camera);
 }
 
-QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex) {
+QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame) {
     QElapsedTimer timer;
     timer.start();
     QString fileName = "output/dv.txt";
@@ -156,7 +175,7 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex) {
     double wiSum = 0;
     Vector2d dp;
 
-    int	k = 100;
+    int	k = 20;
     int	dim	= 2;
     double eps = 0;
     int maxPts = numOfPoint;
@@ -181,7 +200,7 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex) {
 
     dataStream.open("output/data.pts");
     dataIn = &dataStream;
-    queryStream.open("output/query.pts");
+    queryStream.open("output/queryimp.pts");
     queryIn = &queryStream;
 
     nPts = 0;
@@ -219,7 +238,7 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex) {
         //qDebug() << "\tNN:\tIndex\tDistance\n";
         int points = 0;
         double maxDist = 150;
-        double ld = 2.4 / maxDist;
+        double ld = 2.5 / maxDist;
         for (int i = 0; i < k; i++) {
             dists[i] = sqrt(dists[i]);
             if (dists[i] <= maxDist) {
@@ -229,6 +248,7 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex) {
                     break;
                 }
                 wiSum += wi;
+                //wiSum = i;
                 widiSum += wi * dV[nnIdx[i]];
             }
             //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
@@ -256,5 +276,5 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex) {
     delete kdTree;
     annClose();
     qDebug() << "pixelMapping runtime: " << timer.elapsed() * 0.001 << "\n";
-    return showRGBImgImproved(camIndex);
+    return showRGBImgImproved(camIndex, camera, frame);
 }
