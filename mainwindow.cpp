@@ -46,6 +46,156 @@ int numOfPoint = 0;
     }
 }*/
 
+bool check_cluster(MatrixXd query_dV, int nearbyPt_idx) {
+    double queryPt_dist = query_dV(0,0) * query_dV(0,0) + query_dV(1,0) * query_dV(1,0);
+    double nearbyPt_dist = dV[nearbyPt_idx](0,0) * dV[nearbyPt_idx](0,0) + dV[nearbyPt_idx](1,0) * dV[nearbyPt_idx](1,0);
+    /*if(abs(queryPt_dist - nearbyPt_dist) > 50) {
+        return 0;
+    }
+    else*/ if(abs(query_dV(0,0) - dV[nearbyPt_idx](0,0)) <= 15 && abs(query_dV(1,0) - dV[nearbyPt_idx](1,0)) <= 15) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
+int cluster_point (double x, double y, int queryPt_idx, int cluster_num, int point_cluster_num[], int mark_clustered[]) {
+    int	k = 20;
+    int	dim	= 2;
+    double eps = 0;
+    int maxPts = numOfPoint;
+
+    istream* dataIn	= NULL;
+
+    int					nPts;
+    ANNpointArray		dataPts;
+    ANNpoint			queryPt;
+    ANNidxArray			nnIdx;
+    ANNdistArray		dists;
+    ANNkd_tree*			kdTree;
+
+    queryPt = annAllocPt(dim);
+    dataPts = annAllocPts(maxPts, dim);
+    nnIdx = new ANNidx[k];
+    dists = new ANNdist[k];
+
+    queryPt[0] = x;
+    queryPt[1] = y;
+
+    static ifstream dataStream;
+
+    dataStream.open("output/data.pts");
+    dataIn = &dataStream;
+
+    nPts = 0;
+    //cout << "Data Points:\n";
+
+    while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
+        nPts++;
+    }
+
+    kdTree = new ANNkd_tree(
+                    dataPts,
+                    nPts,
+                    dim);
+
+    kdTree->annkSearch(
+            queryPt,
+            k,
+            nnIdx,
+            dists,
+            eps);
+
+    //qDebug() << "\tNN:\tIndex\tDistance\n";
+    double maxDist = 20;
+    int nearbyPt_found = 0;
+    for (int i = 0; i < k; i++) {
+        dists[i] = sqrt(dists[i]);
+        //qDebug() << dists[i] << "\n";
+        if(dists[i] <= maxDist) {
+            nearbyPt_found = 1;
+            if (check_cluster(dV[queryPt_idx], nnIdx[i])) {
+                if (point_cluster_num[nnIdx[i]] == 0 && point_cluster_num[queryPt_idx] == 0) {
+                    point_cluster_num[queryPt_idx] = cluster_num++;
+                    mark_clustered[queryPt_idx] = 1;
+
+                    point_cluster_num[nnIdx[i]] = point_cluster_num[queryPt_idx];
+                    mark_clustered[nnIdx[i]] = 1;
+                }
+                else if (point_cluster_num[nnIdx[i]] == 0){
+                    point_cluster_num[nnIdx[i]] = point_cluster_num[queryPt_idx];
+                    mark_clustered[nnIdx[i]] = 1;
+                }
+                else {
+                    point_cluster_num[queryPt_idx] = point_cluster_num[nnIdx[i]];
+                    mark_clustered[queryPt_idx] = 1;
+                }
+            }
+        }
+    }
+    if (nearbyPt_found == 0) {
+        mark_clustered[queryPt_idx] = 1;
+        point_cluster_num[queryPt_idx] = 0;//cluster_num++;
+    }
+    dataStream.close();
+    delete [] nnIdx;
+    delete [] dists;
+    delete kdTree;
+    annClose();
+    //qDebug() << "reached\n";
+    return cluster_num;
+}
+
+void cluster_all_points (int numOfPoint) {
+    int point_cluster_num[numOfPoint];
+    int mark_clustered[numOfPoint];
+    MatrixXd cluster_dV[MAX_POINTS];
+
+    int cluster_num = 0;
+    for (int i = 0; i < numOfPoint; i++) {
+        point_cluster_num[i] = 0;
+        mark_clustered[i] = 0;
+        //cluster_dV[i] << 0, 0;
+    }
+    for (int i = 0; i < numOfPoint; i++) {
+        if (mark_clustered[i] == 1) {
+            //do nothing
+        }
+        else if (dV[i](0,0) == 10000 && dV[i](1,0) == 10000) {
+            mark_clustered[i] = 1;
+        }
+        else {
+            cluster_num = cluster_point(iCamera.image2DPoint[i].x, iCamera.image2DPoint[i].y, i, cluster_num, point_cluster_num, mark_clustered);
+        }
+    }
+    qDebug() << "cluster num: " << cluster_num << "\n";
+    qDebug() << "num of point: " << numOfPoint << "\n";
+    for (int cluster = 1; cluster <= cluster_num; cluster++) {
+        double point_sum = 0;
+        MatrixXd dV_sum (2,1);
+        dV_sum(0,0) = 0;
+        dV_sum(1,0) = 0;
+        for (int i = 0; i < numOfPoint; i++) {
+            //qDebug() << "point cluster: " << point_cluster_num[i] << "\n";
+            if (point_cluster_num[i] == cluster) {
+                MatrixXd dV_(2,1);
+                dV_ = dV[i];
+                double a = dV_(0,0);
+                double b = dV_(1,0);
+                //qDebug() << cluster << ":" << a << " " << b << "\n";
+                dV_sum += dV[i];
+                point_sum++;
+            }
+        }
+        double a = dV_sum(0,0);
+        double b = dV_sum(1,0);
+        //cluster_dV[cluster] << dV_sum / point_sum;
+        //qDebug() << point_sum << "\n";
+        //qDebug() << cluster << ":" << a << " " << b << "\n";
+    }
+}
+
 void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
     ofstream outputFile;
     string index;
@@ -684,6 +834,7 @@ void MainWindow::on_interpolateSlider_actionTriggered(int action)
 void MainWindow::on_sliderSpinner_valueChanged(int arg1)
 {
     on_interpolateButton_clicked();
+    cluster_all_points(numOfPoint);
     on_getRGBValImpButton_clicked();
 }
 
