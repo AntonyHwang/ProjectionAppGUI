@@ -167,7 +167,8 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo came
     return showRGBImg(camIndex, camera);
 }
 
-QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame) {
+QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame, MatrixXd cluster_dV[], int point_cluster_num[], int cluster_num) {
+    //qDebug() << "reached\n";
     QElapsedTimer timer;
     timer.start();
     QString fileName = "output/dv.txt";
@@ -222,9 +223,9 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
 
     int numofpoint = 0;
     while (readPt(*queryIn, queryPt, dim)) {
-        Vector2d widiSum;
-        widiSum << 0, 0;
-        wiSum = 0;
+        //Vector2d widiSum;
+        //widiSum << 0, 0;
+        //wiSum = 0;
         //qDebug() << "Query point: ";
         //printPt(cout, queryPt, dim);
 
@@ -238,7 +239,8 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
         //qDebug() << "\tNN:\tIndex\tDistance\n";
         int points = 0;
         double maxDist = 150;
-        double ld = 2.5 / maxDist;
+        //CODE FOR INETRPOLATION BY AVERAGE TRANSLATION OF NEARBY POINTS
+        /*double ld = 2.5 / maxDist;
         for (int i = 0; i < k; i++) {
             dists[i] = sqrt(dists[i]);
             if (dists[i] <= maxDist) {
@@ -254,16 +256,53 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
             //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
             //qDebug() << "\t" << dists[i] << "\n";
             //qDebug() << wi << "\n";
+        }*/
+        //CODE FOR INETRPOLATION BY CLUSTERS
+        int cluster_count[cluster_num];
+        int point_cluster = 0;
+        for (int cluster = 0; cluster < cluster_num; cluster++) {
+            cluster_count[cluster] = 0;
         }
+        for (int i = 0; i < k; i++) {
+            dists[i] = sqrt(dists[i]);
+            if (dists[i] <= maxDist) {
+                points++;
+                point_cluster = point_cluster_num[nnIdx[i]];
+                cluster_count[point_cluster]++;
+                if (point_cluster_num[nnIdx[i]] != 0) {
+                    //qDebug() << nnIdx[i] << "\n";
+                }
+            }
+        }
+
         //qDebug() << "sampled points: " << points << "\n";
         if (points == 0) {
             dVFile << 10000 << " " << 10000 << endl;
         }
         else {
-            dp(0,0) = widiSum(0,0) / wiSum;
-            dp(1,0) = widiSum(1,0) / wiSum;
+            int point_cluster = 1;
+            int largest_num_point = 0;
+            for (int cluster = 1; cluster <= cluster_num; cluster++) {
+                if (cluster_count[cluster] > largest_num_point) {
+                    largest_num_point = cluster_count[cluster];
+                    point_cluster = cluster;
+                }
+            }
+            if (largest_num_point != 0) {
+                double x = cluster_dV[point_cluster](0,0);
+                double y = cluster_dV[point_cluster](1,0);
+                MatrixXd temp_dp(2,1);
+                temp_dp << x, y;
+                dp = temp_dp;
+                //qDebug() << dp(0,0) << "\n";
+                dVFile << dp(0,0) << " " << dp(1,0) << endl;
+            }
+            else {
+                dVFile << 0 << " " << 0 << endl;
+            }
+            //dp(0,0) = cluster_dV[point_cluster](0,0);
+            //dp(1,0) = cluster_dV[point_cluster](1,0);
             //qDebug() << dp(0,0) << "\n";
-            dVFile << dp(0,0) << " " << dp(1,0) << endl;
         }
         numofpoint++;
     }

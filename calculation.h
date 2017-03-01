@@ -16,4 +16,4 @@ double focalLen(double a, double b, double t);
 bool readPt(istream &in, ANNpoint p, int dim);
 void printPt(ostream &out, ANNpoint p, int dim);
 QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[]);
-QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame);
+QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame, MatrixXd cluster_dV[], int point_cluster_num[], int cluster_num);

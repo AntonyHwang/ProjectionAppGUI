@@ -13,6 +13,8 @@ public:
     ~MainWindow();
 
 private slots:
+    void cluster_all_points (int numOfPoint);
+
     void on_calcButton_clicked();
 
     void on_showButton_clicked();
