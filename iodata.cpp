@@ -8,7 +8,8 @@
 #include <QFile>
 #include <QGraphicsView>
 #include <QGraphicsScene>
-#include <QElapsedTimer>
+#include <QPainter>
+#include <random>
 
 double stringToDouble(string s) {
     double d = atof(s.c_str());
@@ -283,7 +284,6 @@ void readPatchFile(cameraInfo camera[]) {
                     point_RGB.r = r;
                     point_RGB.g = g;
                     point_RGB.b = b;
-                    //cout << r << " " << g << " " << b << "\n";
                 }
                 else if (lineCount == 7 || lineCount == 9) {
                     calculate2DPoint(camera, stringToDouble(firstWord), point_3D, point_RGB);
@@ -297,9 +297,10 @@ void readPatchFile(cameraInfo camera[]) {
                         calculate2DPoint(camera, n, point_3D, point_RGB);
                     }
                     pointNum++;
-                    //cout << pointNum << " 3D points calculation complete\n";
                 }
-                //cout << "\n";
+                else if (lineCount == 8 && stringToDouble(firstWord) == 0) {
+                    lineCount++;
+                }
                 lineCount++;
                 if (patchfile.eof()) {
                     patchfile.close();
@@ -391,9 +392,9 @@ QImage showRGBImg(int camIndex, cameraInfo camera[]) {
                    QString x, y;
                    int px, py;
                    QString line = in.readLine();
-                   //qDebug() << line << "\n";
+
                    in >> x >> y;
-                   //qDebug() << x.toDouble() << "\t" << y.toDouble() << "\n";
+
                    px = ix - x.toDouble();
                    py = iy - y.toDouble();
                    if (px < 0) {
@@ -409,7 +410,6 @@ QImage showRGBImg(int camIndex, cameraInfo camera[]) {
                        py = camera[0].imgCentreY * 2 - 1;
                    }
                    QColor c = QColor::fromRgb (oImage.pixel(px,py) );
-                   //qDebug() << ix << "\t" << iy << ": " << px << "\t" << py << "\n";
                    if (x == "10000" && y == "10000") {
                        image.setPixel(ix / 2, iy / 2, QColor(Qt::white).rgb());
                    }
@@ -438,37 +438,65 @@ void save_interpolated_data(QImage image, int frame) {
     }
 }
 
-QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
-    QElapsedTimer timer;
-    timer.start();
+QImage show_displacement(QImage image, int frame) {
+    QFile start_end_file("output/drawing/frame_" + QString::number(frame) + ".txt");
+    start_end_file.open(QIODevice::ReadOnly);
+    QTextStream start_end(&start_end_file);
+
+    QPainter painter;
+    painter.begin(&image);
+
+    QString from_x, from_y, to_x, to_y, r, g, b;
+    QColor color;
+
+    while (!start_end.atEnd()) {
+        start_end >> from_x >> from_y >> to_x >> to_y >> r >> g >> b;
+        painter.drawLine(from_x.toInt(),from_y.toInt(),to_x.toInt(),to_y.toInt());
+        painter.drawEllipse(to_x.toInt(),to_y.toInt(), 2, 2);
+    }
+    painter.end();
+    start_end_file.close();
+    return image;
+}
+
+//improved runtime by interpolating the RGB values
+QImage showRGBImgImproved(QString method, int camIndex, cameraInfo camera[], int frame) {
     int xOdd = 0;
     int yOdd = 0;
+    QString filePath;
     QImage image = QImage(camera[0].imgCentreX, camera[0].imgCentreY, QImage::Format_RGB32);
     image.fill(QColor(Qt::white).rgb());
     QImage full_image = QImage(camera[0].imgCentreX * 2, camera[0].imgCentreY * 2, QImage::Format_RGB32);
     full_image.fill(QColor(Qt::white).rgb());
 
-    //interpolate by first and last frame
-    //QString filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
+    QFile start_end_file("output/drawing/frame_" + QString::number(frame) + ".txt");
 
-
-    //improved interpolate by previous frame
-    /**/
-    QString filePath;
-    if (frame == 0 || frame == 1 || frame == 9 || frame == 10) {
+    if (method == QString::fromStdString("First Last Frame")) {
+        //inerpolate by first and last frame
+        /**/
         filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
+        start_end_file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+        /**/
     }
     else {
-        if (frame <= 5) {
-            filePath = QString("output/visualize/frame_" + QString::number(frame - 1) + ".jpg");
+        //inerpolate by previous frame
+        /**/
+        start_end_file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+
+        if (frame == 0 || frame == 1 || frame == 9 || frame == 10) {
+            filePath = QString(("visualize/" + getFileName("Img", camIndex)).c_str());
         }
         else {
-            filePath = QString("output/visualize/frame_" + QString::number(frame + 1) + ".jpg");
+            if (frame <= 5) {
+                filePath = QString("output/visualize/frame_" + QString::number(frame - 1) + ".jpg");
+            }
+            else {
+                filePath = QString("output/visualize/frame_" + QString::number(frame + 1) + ".jpg");
+            }
         }
+        /**/
     }
-    /**/
-
-
+    QTextStream start_end(&start_end_file);
     QImage oImage = QImage(filePath);
     QFile inputFile("output/dv.txt");
     if (inputFile.open(QIODevice::ReadOnly))
@@ -491,10 +519,10 @@ QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
                        yOdd = 0;
                    }
                    if (xOdd == yOdd) {
-                       QString x, y;
+                       QString x, y, r, g, b;
                        int px, py;
                        QString line = in.readLine();
-                       in >> x >> y;
+                       in >> x >> y >> r >> g >> b;
                        if ((x == "10000" && y == "10000") || (x == "nan" && y == "nan")) {
                            image.setPixel(ix / 2, iy / 2, QColor(Qt::white).rgb());
                            full_image.setPixel(ix, iy, QColor(Qt::white).rgb());
@@ -502,7 +530,6 @@ QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
                        else {
                            px = ix - x.toDouble();
                            py = iy - y.toDouble();
-                           //qDebug() << px << py << "\n";
                            if (px < 0) {
                                px = 0;
                            }
@@ -516,21 +543,14 @@ QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
                                py = camera[0].imgCentreY * 2 - 1;
                            }
 
-                           //interpolate by first and last frame
-                           //QColor c = QColor::fromRgb (oImage.pixel(px,py));
-
-                           //improved interpolate by previous frame
-                           /**/
                            QColor c;
-                           if (frame == 0 || frame == 1 || frame == 9 || frame == 10) {
-                               c = QColor::fromRgb (oImage.pixel(px,py));
-                           }
-                           else {
-                               c = QColor::fromRgb (oImage.pixel(px / 2,py / 2));
-                           }
+                           c = QColor::fromRgb (oImage.pixel(px, py));
+
                            /**/
-
-
+                           //debugging by visual
+                           if (ix % 30 == 0 && iy % 30 == 0) {
+                               start_end << px << " " << py << " " << ix << " " << iy << " " << r << " " << g << " " << b << endl;
+                           }
                            image.setPixel(ix / 2, iy / 2, c.rgb());
                            full_image.setPixel(ix, iy, c.rgb());
                        }
@@ -539,15 +559,16 @@ QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
            }
        }
        inputFile.close();
+       start_end_file.close();
     }
-    for (int ix = 0; ix < camera[0].imgCentreX; ix++) {
+    for (int ix = 0; ix < camera[0].imgCentreX * 2; ix++) {
         if (ix % 2) {
             xOdd = 1;
         }
         else {
             xOdd = 0;
         }
-        for (int iy = 0; iy < camera[0].imgCentreY; iy++) {
+        for (int iy = 0; iy < camera[0].imgCentreY * 2; iy++) {
             if (iy % 2) {
                 yOdd = 1;
             }
@@ -568,16 +589,16 @@ QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
                     n1.setBlue(0);
                 }
                 else {
-                    n1 = QColor::fromRgb (image.pixel(ix - 1, iy)); //left
+                    n1 = QColor::fromRgb (full_image.pixel(ix - 1, iy)); //left
                 }
-                if (ix + 1 >= camera[0].imgCentreX) {
+                if (ix + 1 >= camera[0].imgCentreX * 2) {
                     nPixel--;
                     n3.setRed(0);
                     n3.setGreen(0);
                     n3.setBlue(0);
                 }
                 else {
-                    n3 = QColor::fromRgb (image.pixel(ix + 1,iy)); //right
+                    n3 = QColor::fromRgb (full_image.pixel(ix + 1,iy)); //right
                 }
                 if (iy - 1 < 0) {
                     nPixel--;
@@ -586,30 +607,31 @@ QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame) {
                     n2.setBlue(0);
                 }
                 else {
-                    n2 = QColor::fromRgb (image.pixel(ix, iy - 1)); //bottom
+                    n2 = QColor::fromRgb (full_image.pixel(ix, iy - 1)); //bottom
                 }
-                if (iy + 1 >= camera[0].imgCentreY) {
+                if (iy + 1 >= camera[0].imgCentreY * 2) {
                     nPixel--;
                     n4.setRed(0);
                     n4.setGreen(0);
                     n4.setBlue(0);
                 }
                 else {
-                    n4 = QColor::fromRgb (image.pixel(ix, iy + 1)); //top
+                    n4 = QColor::fromRgb (full_image.pixel(ix, iy + 1)); //top
                 }
                 avgRGB.setAlpha(1);
                 avgRGB.setRed((n1.red() + n2.red() + n3.red() + n4.red()) / nPixel);
                 avgRGB.setGreen((n1.green() + n2.green() + n3.green() + n4.green()) / nPixel);
                 avgRGB.setBlue((n1.blue() + n2.blue() + n3.blue() + n4.blue()) / nPixel);
-                image.setPixel(ix, iy, avgRGB.rgb());
-                full_image.setPixel(ix * 2, iy * 2, avgRGB.rgb());
-
-                //qDebug() << ix << " " << iy << " " << n1 << " " << n2 << " " << n3 << " " << n4 << "\n";
+                image.setPixel(ix / 2, iy / 2, avgRGB.rgb());
+                full_image.setPixel(ix, iy, avgRGB.rgb());
             }
         }
     }
-    save_interpolated_data(image, frame);
-    qDebug() << "showRGBImg runtime: " << timer.elapsed() * 0.001 << "\n";
-    image.save("output/visualize/frame_" + QString::number(frame) + ".jpg");
+    save_interpolated_data(full_image, frame);
+    full_image.save("output/visualize/frame_" + QString::number(frame) + ".jpg");
+    QImage debug_image = QImage(camera[0].imgCentreX * 2, camera[0].imgCentreY * 2, QImage::Format_RGB32);
+    debug_image = show_displacement(full_image, frame);
+    debug_image.save("output/visualize/debug/frame_" + QString::number(frame) + ".jpg");
+
     return image;
 }

@@ -1,7 +1,8 @@
 #include "calculation.h"
 #include <QDebug>
 #include <QFile>
-#include <QElapsedTimer>
+#include <QApplication>
+#include <QProcess>
 
 using namespace std;
 
@@ -42,9 +43,8 @@ bool readPt(istream &in, ANNpoint p, int dim)			// read point (false on EOF)
     return true;
 }
 
-QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[]) {
-    QElapsedTimer timer;
-    timer.start();
+//CODE FOR INETRPOLATION BY AVERAGE TRANSLATION OF NEARBY POINTS
+QImage pixelMapping(QString method, int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame) {
     QString fileName = "output/dv.txt";
     double wi = 0;
     double wiSum = 0;
@@ -75,11 +75,10 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo came
 
     dataStream.open("output/data.pts");
     dataIn = &dataStream;
-    queryStream.open("output/query.pts");
+    queryStream.open("output/queryimp.pts");
     queryIn = &queryStream;
 
     nPts = 0;
-    //cout << "Data Points:\n";
 
     while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
         nPts++;
@@ -100,8 +99,6 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo came
         Vector2d widiSum;
         widiSum << 0, 0;
         wiSum = 0;
-        //qDebug() << "Query point: ";
-        //printPt(cout, queryPt, dim);
 
         kdTree->annkSearch(
                 queryPt,
@@ -110,23 +107,8 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo came
                 dists,
                 eps);
 
-        //qDebug() << "\tNN:\tIndex\tDistance\n";
-        /*int points = 0;
-        for (int i = 0; i < k; i++) {
-            dists[i] = sqrt(dists[i]);
-            if (dists[i] <= 300) {
-                points++;
-                wi = exp(-0.008 * dists[i]);
-                wiSum += wi;
-                widiSum += wi * dV[nnIdx[i]];
-            }
-            //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
-            //qDebug() << "\t" << dists[i] << "\n";
-            //qDebug() << wi << "\n";
-        }*/
-
         int points = 0;
-        double maxDist = 200;
+        double maxDist = 50;
         double ld = 2.5 / maxDist;
         for (int i = 0; i < k; i++) {
             dists[i] = sqrt(dists[i]);
@@ -139,23 +121,25 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo came
                 wiSum += wi;
                 widiSum += wi * dV[nnIdx[i]];
             }
-            //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
-            //qDebug() << "\t" << dists[i] << "\n";
-            //qDebug() << wi << "\n";
+            if (points == 0 && i == k - 1) {
+                i = 0;
+                maxDist += 20;
+            }
         }
-        //qDebug() << "sampled points: " << points << "\n";
         if (points == 0) {
-            dVFile << 10000 << " " << 10000 << endl;
+            dVFile << 10000 << " " << 10000 << " " << 0 << " " << 0 << " " << 0 << endl;
         }
         else {
+            if (wiSum == 0) {
+                wiSum = 1;
+            }
             dp(0,0) = widiSum(0,0) / wiSum;
             dp(1,0) = widiSum(1,0) / wiSum;
-            //qDebug() << dp(0,0) << "\n";
-            dVFile << dp(0,0) << " " << dp(1,0) << endl;
+            dVFile << dp(0,0) << " " << dp(1,0) << " " << 0 << " " << 0 << " " << 0 << endl;
         }
         numofpoint++;
+        qApp->processEvents(QEventLoop::ExcludeSocketNotifiers,1);
     }
-    //qDebug() << "numofpoint: " << numofpoint << "\n";
     file.close();
     dataStream.close();
     queryStream.close();
@@ -163,17 +147,13 @@ QImage pixelMapping(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo came
     delete [] dists;
     delete kdTree;
     annClose();
-    qDebug() << "pixelMapping runtime: " << timer.elapsed() * 0.001 << "\n";
-    return showRGBImg(camIndex, camera);
+    return showRGBImgImproved(method, camIndex, camera, frame);
 }
 
-QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame, MatrixXd cluster_dV[], int point_cluster_num[], int cluster_num) {
-    //qDebug() << "reached\n";
-    QElapsedTimer timer;
-    timer.start();
+//CODE FOR INETRPOLATION BY CLUSTERS
+QImage pixelMappingImproved(QString method, QString clustering, QColor clusterRGB[], int numOfPoint, MatrixXd dV[], int camIndex, cameraInfo camera[], int frame, MatrixXd cluster_dV[], int point_cluster_num[], int cluster_num) {
+
     QString fileName = "output/dv.txt";
-    double wi = 0;
-    double wiSum = 0;
     Vector2d dp;
 
     int	k = 20;
@@ -205,7 +185,6 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
     queryIn = &queryStream;
 
     nPts = 0;
-    //cout << "Data Points:\n";
 
     while (nPts < maxPts && readPt(*dataIn, dataPts[nPts], dim)) {
         nPts++;
@@ -222,12 +201,8 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
     QTextStream dVFile(&file);
 
     int numofpoint = 0;
+
     while (readPt(*queryIn, queryPt, dim)) {
-        //Vector2d widiSum;
-        //widiSum << 0, 0;
-        //wiSum = 0;
-        //qDebug() << "Query point: ";
-        //printPt(cout, queryPt, dim);
 
         kdTree->annkSearch(
                 queryPt,
@@ -236,31 +211,12 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
                 dists,
                 eps);
 
-        //qDebug() << "\tNN:\tIndex\tDistance\n";
         int points = 0;
-        double maxDist = 150;
-        //CODE FOR INETRPOLATION BY AVERAGE TRANSLATION OF NEARBY POINTS
-        /*double ld = 2.5 / maxDist;
-        for (int i = 0; i < k; i++) {
-            dists[i] = sqrt(dists[i]);
-            if (dists[i] <= maxDist) {
-                points++;
-                wi = exp(-ld * dists[i]);
-                if (wi < 0.1) {
-                    break;
-                }
-                wiSum += wi;
-                //wiSum = i;
-                widiSum += wi * dV[nnIdx[i]];
-            }
-            //qDebug() << "\t" << i << "\t" << nnIdx[i] << "\t" << dists[i] << "\n";
-            //qDebug() << "\t" << dists[i] << "\n";
-            //qDebug() << wi << "\n";
-        }*/
-        //CODE FOR INETRPOLATION BY CLUSTERS
+        double maxDist = 100;
+
         int cluster_count[cluster_num];
         int point_cluster = 0;
-        for (int cluster = 0; cluster < cluster_num; cluster++) {
+        for (int cluster = 0; cluster <= cluster_num; cluster++) {
             cluster_count[cluster] = 0;
         }
         for (int i = 0; i < k; i++) {
@@ -269,15 +225,16 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
                 points++;
                 point_cluster = point_cluster_num[nnIdx[i]];
                 cluster_count[point_cluster]++;
-                if (point_cluster_num[nnIdx[i]] != 0) {
-                    //qDebug() << nnIdx[i] << "\n";
-                }
+            }
+            //if its the last point and no nearby points found
+            if (points == 0 && i == k - 1) {
+                i = 0;
+                maxDist += 20;
             }
         }
 
-        //qDebug() << "sampled points: " << points << "\n";
         if (points == 0) {
-            dVFile << 10000 << " " << 10000 << endl;
+            dVFile << 10000 << " " << 10000 << " " << 0 << " " << 0 << " " << 0 << endl;
         }
         else {
             int point_cluster = 1;
@@ -294,19 +251,15 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
                 MatrixXd temp_dp(2,1);
                 temp_dp << x, y;
                 dp = temp_dp;
-                //qDebug() << dp(0,0) << "\n";
-                dVFile << dp(0,0) << " " << dp(1,0) << endl;
+                dVFile << dp(0,0) << " " << dp(1,0) << " " << clusterRGB[point_cluster].red() << " " << clusterRGB[point_cluster].green() << " " << clusterRGB[point_cluster].blue() << endl;
             }
             else {
-                dVFile << 0 << " " << 0 << endl;
+                dVFile << 0 << " " << 0 << " " << 0 << " " << 0 << " " << 0 <<  endl;
             }
-            //dp(0,0) = cluster_dV[point_cluster](0,0);
-            //dp(1,0) = cluster_dV[point_cluster](1,0);
-            //qDebug() << dp(0,0) << "\n";
         }
         numofpoint++;
+        qApp->processEvents(QEventLoop::ExcludeSocketNotifiers,1);
     }
-    //qDebug() << "numofpoint: " << numofpoint << "\n";
     file.close();
     dataStream.close();
     queryStream.close();
@@ -314,6 +267,5 @@ QImage pixelMappingImproved(int numOfPoint, MatrixXd dV[], int camIndex, cameraI
     delete [] dists;
     delete kdTree;
     annClose();
-    qDebug() << "pixelMapping runtime: " << timer.elapsed() * 0.001 << "\n";
-    return showRGBImgImproved(camIndex, camera, frame);
+    return showRGBImgImproved(method, camIndex, camera, frame);
 }

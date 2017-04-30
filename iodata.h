@@ -8,7 +8,7 @@
 using namespace std;
 using namespace Eigen;
 
-const int MAX_CAM_NUM = 200;
+const int MAX_CAM_NUM = 50;
 const int MAX_POINTS = 150000;
 
 struct RGB {
@@ -59,4 +59,4 @@ void writeQueryToFileImproved(int maxX, int maxY);
 void writeToFile(int mode, QString fileName, double x, double y);
 QImage showRGBImg(int camIndex, cameraInfo camera[]);
 void save_interpolated_data(QImage image, int frame);
-QImage showRGBImgImproved(int camIndex, cameraInfo camera[], int frame);
+QImage showRGBImgImproved(QString method, int camIndex, cameraInfo camera[], int frame);
