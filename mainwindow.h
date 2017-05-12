@@ -44,6 +44,8 @@ private slots:
 
     void on_full_interpolation_clicked();
 
+    void on_cam1Box_currentIndexChanged(int index);
+
 private:
     Ui::MainWindow *ui;
     void runCalc();

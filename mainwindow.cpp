@@ -1,8 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "calculation.h"
-//#include "data.h"
-
 #include <math.h>
 #include <iostream>
 #include <fstream>
@@ -12,9 +10,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <time.h>
-
 #include <ANN/ANN.h>
-
 #include <QDebug>
 #include <QImage>
 #include <QFile>
@@ -80,18 +76,8 @@ void MainWindow::enable_all_ui() {
 }
 
 bool check_cluster(int queryPt_idx, int nearbyPt_idx) {
-    double queryPt_r = iCamera.image2DPoint[queryPt_idx].pointRGB.r;
-    double queryPt_g = iCamera.image2DPoint[queryPt_idx].pointRGB.g;
-    double queryPt_b = iCamera.image2DPoint[queryPt_idx].pointRGB.b;
-    double nearbyPt_r = iCamera.image2DPoint[nearbyPt_idx].pointRGB.r;
-    double nearbyPt_g = iCamera.image2DPoint[nearbyPt_idx].pointRGB.g;
-    double nearbyPt_b = iCamera.image2DPoint[nearbyPt_idx].pointRGB.b;
-    double rgb_diff = abs(queryPt_r - nearbyPt_r) + abs(queryPt_g - nearbyPt_g) + abs(queryPt_b - nearbyPt_b);
 
-    /*if (rgb_diff > 10) {
-        return 0;
-    }
-    else*/ if((abs(dV[queryPt_idx](0,0) - dV[nearbyPt_idx](0,0)) + abs(dV[queryPt_idx](1,0) - dV[nearbyPt_idx](1,0))) > 10) {
+    if((abs(dV[queryPt_idx](0,0) - dV[nearbyPt_idx](0,0)) + abs(dV[queryPt_idx](1,0) - dV[nearbyPt_idx](1,0))) > 10) {
         return 0;
     }
     else {
@@ -178,18 +164,16 @@ void cluster_point (double x, double y, int queryPt_idx, int mark_clustered[]) {
     }
     if (nearbyPt_found == 0) {
         mark_clustered[queryPt_idx] = 1;
-        point_cluster_num[queryPt_idx] = 0;//cluster_num++;
+        point_cluster_num[queryPt_idx] = 0;
     }
     dataStream.close();
     delete [] nnIdx;
     delete [] dists;
     delete kdTree;
     annClose();
-    //qDebug() << "reached\n";
 }
 
 void MainWindow::cluster_all_points (int numOfPoint) {
-    //int frame = ui->sliderSpinner->value();
     int mark_clustered[numOfPoint];
     cluster_num = 0;
     //initialisation
@@ -269,8 +253,6 @@ void writeToFile (int camIndex, double x, double y, RGB RGBVal) {
 }
 
 void MainWindow::runCalc() {
-    //int cameraCount = 0;
-    //initialiseK();
     //qDebug() << "K initialised";
     cameraCount = readCamFile(camera);//contains camera information
     qDebug() << "cam file read";
@@ -280,7 +262,6 @@ void MainWindow::runCalc() {
     qDebug() << "processed";
     readPatchFile(camera);//contains the the 3D coordinates
     qDebug() << "Patch file read";
-    //cout << "\nreached\n";
 }
 
 void MainWindow::setCameraBox() {
@@ -754,4 +735,11 @@ void MainWindow::on_full_interpolation_clicked()
     }
     enable_all_ui();
     qDebug() << "ended\n";
+}
+
+void MainWindow::on_cam1Box_currentIndexChanged(int index)
+{
+    ui->cam2Box->setEnabled(false);
+    ui->matchButton->setEnabled(false);
+    ui->full_interpolation->setEnabled(false);
 }

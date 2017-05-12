@@ -74,7 +74,6 @@ int readCamFile(cameraInfo camera[]) {
     int cameraIdx = 0;
     Vector3d r1;
     Vector3d r2;
-
     QFile camFile("cameraData/cameras_v2.txt");
     if (camFile.open(QIODevice::ReadOnly))
     {
@@ -83,15 +82,11 @@ int readCamFile(cameraInfo camera[]) {
        {
            QString line = in.readLine();
            QStringList numbers = line.split( " " );
-           //qDebug() << "lineNum: " << lineCount << "\n";
            if (lineCount == 21) {
                //storing focal length
-               //cout << "\n" << "Storing camera " << cameraIdx << "\n";
                camera[cameraIdx].focalLen = line.toDouble();
                camera[cameraIdx].K(0,0) = camera[cameraIdx].focalLen;
                camera[cameraIdx].K(1,1) = camera[cameraIdx].focalLen;
-               //cout << "K: \n" << camera[cameraIdx].K << "\n";
-               //qDebug() << line.toDouble() << "\n";
            }
            else if (lineCount == 22) {
                //storing image center
@@ -100,57 +95,41 @@ int readCamFile(cameraInfo camera[]) {
                camera[cameraIdx].K(0,2) = camera[cameraIdx].imgCentreX;
                camera[cameraIdx].K(1,2) = camera[cameraIdx].imgCentreY;
                camera[cameraIdx].K(2,2) = 1;
-               //qDebug() << camera[cameraCount - 1].imgCentreX << " " << camera[cameraCount - 1].imgCentreY << "\n";
            }
            else if (lineCount == 23) {
                //storing Translation T
                camera[cameraIdx].T << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
-               //cout << "T: \n" << camera[cameraIdx].T << "\n";
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
            }
            else if (lineCount == 24) {
                //storing Camera position C
                camera[cameraIdx].C << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
-               //cout << "C: \n" << camera[cameraIdx].C << "\n";
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
            }
            else if (lineCount == 25) {
                //storing Axis angle format of R
                camera[cameraIdx].aR << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
-               //cout << "aR: \n" << camera[cameraIdx].aR << "\n";
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
            }
            else if (lineCount == 26) {
                //storign Quaternion format of R
                camera[cameraIdx].qR << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble(), numbers.value(3).toDouble();
-               //cout << "qR: \n" << camera[cameraIdx].qR << "\n";
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << numbers.value(3).toDouble() << "\n";
            }
            else if (lineCount == 27) {
                //storing Matrix format of R
                r1 << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
            }
            else if (lineCount == 28) {
                r2 << numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
            }
            else if (lineCount == 29) {
                camera[cameraIdx].R << r1(0,0), r1(1,0), r1(2,0),
                                       r2(0,0), r2(1,0), r2(2,0),
                                       numbers.value(0).toDouble(), numbers.value(1).toDouble(), numbers.value(2).toDouble();
-               //cout << "R: \n" << camera[cameraIdx].R << "\n";
-               //qDebug() << numbers.value(0).toDouble() << numbers.value(1).toDouble() << numbers.value(2).toDouble() << "\n";
            }
            else if (lineCount == 30) {
                //storing Normalized radial distortion
                camera[cameraIdx].rD = line.toDouble();;
-               //cout << "rD: \n" << camera[cameraIdx].rD << "\n";
-               //qDebug() << line.toDouble() << "\n";
            }
            else if (lineCount == 17) {
                numCameras = line.toInt();
-               //qDebug() << line.toInt() << "\n";
            }
 
            lineCount++;
@@ -186,7 +165,6 @@ void readPFiles(cameraInfo camera[], int cameraCount) {
                                                z1, z2, z3, z4;
             }
             pfile.close();
-            //cout << "P: \n" << camera[currentCamera].P << "\n";
         }
         else cout << "Unable to open file";
     }
@@ -235,7 +213,6 @@ void store2DPoint (cameraInfo camera[], int camIndex, double x, double y, RGB po
     camera[camIndex].image2DPoint[emptyIndex].pointRGB.r = point_RGB.r;
     camera[camIndex].image2DPoint[emptyIndex].pointRGB.g = point_RGB.g;
     camera[camIndex].image2DPoint[emptyIndex].pointRGB.b = point_RGB.b;
-    //cout << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.r << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.g << " " << camera[camIndex - 1].image2DPoint[emptyIndex].pointRGB.b << "\n";
 }
 
 void calculate2DPoint(cameraInfo camera[], int index, Vector4d point_3D, RGB point_RGB) {
@@ -246,8 +223,6 @@ void calculate2DPoint(cameraInfo camera[], int index, Vector4d point_3D, RGB poi
     point_2D = camera[index].P * point_3D;
     x = point_2D(0, 0) / (point_2D(2, 0));
     y = point_2D(1, 0) / (point_2D(2, 0));
-    //cout << "X: " << x << "  Y: " << y << "\n";
-    //writeToFile(index, x, y, point_RGB);
     store2DPoint(camera, index, x, y, point_RGB, point_3D);
 }
 
